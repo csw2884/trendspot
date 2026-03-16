@@ -6,6 +6,8 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3ZmhuaHVudm9oeWplcWt1bXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NzIzODUsImV4cCI6MjA4OTE0ODM4NX0.wqpsLV5GxR1w8xMQobFY-AquG-ioDoaaNDmhydup0AE'
 );
 
+const REDIRECT_URL = 'https://trendspot-blush.vercel.app';
+
 function Auth({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,9 +18,7 @@ function Auth({ onLogin }) {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'kakao',
-        options: {
-          redirectTo: window.location.origin
-        }
+        options: { redirectTo: REDIRECT_URL }
       });
       if (error) throw error;
     } catch (err) {
@@ -33,9 +33,7 @@ function Auth({ onLogin }) {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
+        options: { redirectTo: REDIRECT_URL }
       });
       if (error) throw error;
     } catch (err) {
@@ -56,20 +54,12 @@ function Auth({ onLogin }) {
 
         {error && <div className="auth-error">{error}</div>}
 
-        <button
-          className="kakao-login-btn"
-          onClick={handleKakaoLogin}
-          disabled={loading}
-        >
+        <button className="kakao-login-btn" onClick={handleKakaoLogin} disabled={loading}>
           <img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png" alt="kakao" width="24" />
           {loading ? '처리 중...' : '카카오로 로그인'}
         </button>
 
-        <button
-          className="google-login-btn"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-        >
+        <button className="google-login-btn" onClick={handleGoogleLogin} disabled={loading}>
           <img src="https://www.google.com/favicon.ico" alt="google" width="20" />
           {loading ? '처리 중...' : '구글로 로그인'}
         </button>
