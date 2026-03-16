@@ -87,11 +87,13 @@ ${JSON.stringify(context, null, 2)}
         })
       });
 
-      const data = await response.json();
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.content[0].text
-      }]);
+        const data = await response.json();
+    console.log('API 응답:', data); // 디버깅용
+    const text = data.content?.[0]?.text || data.error || '응답을 받지 못했어요.';
+    setMessages(prev => [...prev, {
+    role: 'assistant',
+        content: text
+            }]);
 
     } catch (error) {
       console.error('AI 응답 실패:', error);
