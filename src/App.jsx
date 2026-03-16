@@ -40,6 +40,7 @@ function App() {
   const [loadingCongestion, setLoadingCongestion] = useState(false);
   const [nearbyStores, setNearbyStores] = useState([]);
   const [showNearbyPanel, setShowNearbyPanel] = useState(false);
+  const [kakaoLoaded, setKakaoLoaded] = useState(false);
 
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
@@ -49,29 +50,36 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setUser(session.user);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-
     loadStoresAndStocks();
     getUserLocation();
-
     return () => subscription.unsubscribe();
   }, []);
 
+  // 카카오맵 스크립트 로드
   useEffect(() => {
-    if (!window.kakao?.maps) {
-      const script = document.createElement('script');
-      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
-      script.onload = () => {
-        window.kakao.maps.load(() => { initializeMap(); });
-      };
-      document.head.appendChild(script);
-    } else {
+    if (window.kakao?.maps) {
+      setKakaoLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
+    script.onload = () => {
+      window.kakao.maps.load(() => {
+        setKakaoLoaded(true);
+      });
+    };
+    document.head.appendChild(script);
+  }, []);
+
+  // 카카오맵 초기화 (kakaoLoaded + stores 둘 다 준비됐을 때)
+  useEffect(() => {
+    if (kakaoLoaded && stores.length > 0) {
       initializeMap();
     }
-  }, [stores]);
+  }, [kakaoLoaded, stores]);
 
   useEffect(() => {
     const stocksSubscription = supabase
@@ -156,8 +164,7 @@ function App() {
           setUserLocation(loc);
           updateNearbyStores(loc);
         },
-        (error) => {
-          console.error('위치 정보 가져오기 실패:', error);
+        () => {
           const defaultLoc = { lat: 37.5665, lng: 126.9780 };
           setUserLocation(defaultLoc);
           updateNearbyStores(defaultLoc);
@@ -172,6 +179,8 @@ function App() {
 
   const initializeMap = () => {
     if (!mapContainerRef.current || stores.length === 0) return;
+    if (!window.kakao?.maps) return;
+
     const mapOption = {
       center: new window.kakao.maps.LatLng(37.5665, 126.9780),
       level: 8
@@ -358,7 +367,6 @@ function App() {
 
   return (
     <div className="app">
-      {/* 로그인 모달 */}
       {showAuthModal && (
         <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
           <div onClick={e => e.stopPropagation()}>
@@ -374,7 +382,7 @@ function App() {
             {user ? (
               <>
                 <span className="user-nickname">
-                  {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
+                  {user?.user_metadata?.nickname || user?.user_metadata?.name || user?.email?.split('@')[0]}
                 </span>
                 <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
               </>
@@ -421,7 +429,6 @@ function App() {
         </div>
       </main>
 
-      {/* 내 주변 매장 패널 */}
       <div className={`nearby-panel ${showNearbyPanel ? 'open' : ''}`}>
         <div className="nearby-panel-header" onClick={() => setShowNearbyPanel(!showNearbyPanel)}>
           <span>📍 내 주변 매장</span>
@@ -475,7 +482,6 @@ function App() {
         )}
       </div>
 
-      {/* 재고 제보 폼 모달 */}
       {showReportForm && selectedStore && (
         <div className="modal-overlay" onClick={() => setShowReportForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
