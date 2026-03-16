@@ -179,7 +179,7 @@ const initializeMap = () => {
 
   const mapOption = {
     center: center,
-    level: 5  // 더 가까이 보이게 5로 변경
+    level: 3  // 더 가까이 보이게 5로 변경
   };
     const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, mapOption);
     setMap(mapInstance);
