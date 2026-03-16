@@ -62,7 +62,7 @@ function Auth({ onLogin }) {
           disabled={loading}
         >
           <img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_medium.png" alt="kakao" width="24" />
-          카카오로 로그인
+          {loading ? '처리 중...' : '카카오로 로그인'}
         </button>
 
         <button
@@ -71,7 +71,7 @@ function Auth({ onLogin }) {
           disabled={loading}
         >
           <img src="https://www.google.com/favicon.ico" alt="google" width="20" />
-          구글로 로그인
+          {loading ? '처리 중...' : '구글로 로그인'}
         </button>
 
         <p className="auth-notice">로그인 없이도 재고 확인은 가능해요 😊</p>
