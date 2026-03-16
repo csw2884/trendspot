@@ -33,7 +33,7 @@ function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportData, setReportData] = useState({ itemName: '', status: '여유', quantity: '' });
-  const [isDevMode] = useState(true);
+  const [isDevMode] = useState(false);
   const [loadingCongestion, setLoadingCongestion] = useState(false);
   const [nearbyStores, setNearbyStores] = useState([]);
   const [showNearbyPanel, setShowNearbyPanel] = useState(false);
