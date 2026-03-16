@@ -3,9 +3,11 @@ import './App.css';
 import { addCongestionToAllStores, formatCongestionInfo } from './utils/seoulCityData';
 import Auth from './components/Auth';
 import AIAssistant from './components/AIAssistant';
+import Admin from './components/Admin';
 import { supabase } from './lib/supabase';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
+const ADMIN_EMAIL = 'dany4274@naver.com';
 
 const CATEGORIES = {
   popmart: { name: '팝마트', color: '#FF6B6B', emoji: '🧸' },
@@ -24,18 +26,19 @@ const STOCK_STATUS = {
 function App() {
   const [user, setUser] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAdminPage, setShowAdminPage] = useState(false);
   const [spotPoints, setSpotPoints] = useState(0);
   const [map, setMap] = useState(null);
   const [stores, setStores] = useState([]);
   const [stocks, setStocks] = useState([]);
-  const [activeCategory, setActiveCategory] = useState(null); // null = 아무것도 선택 안 함
+  const [activeCategory, setActiveCategory] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [showAddStoreForm, setShowAddStoreForm] = useState(false);
   const [reportData, setReportData] = useState({ itemName: '', status: '여유', quantity: '' });
-  const [storeData, setStoreData] = useState({ name: '', category: 'popmart', address: '', lat: '', lng: '' });
-  const [isDevMode] = useState(false);
+  const [storeData, setStoreData] = useState({ name: '', category: 'popmart', address: '' });
+  const [addressLoading, setAddressLoading] = useState(false);
   const [loadingCongestion, setLoadingCongestion] = useState(false);
   const [nearbyStores, setNearbyStores] = useState([]);
   const [showNearbyPanel, setShowNearbyPanel] = useState(false);
@@ -62,23 +65,31 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (window.kakao?.maps) {
-      setKakaoLoaded(true);
-      return;
-    }
+    if (window.kakao?.maps) { setKakaoLoaded(true); return; }
     const script = document.createElement('script');
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
-    script.onload = () => {
-      window.kakao.maps.load(() => { setKakaoLoaded(true); });
-    };
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false&libraries=services`;
+    script.onload = () => { window.kakao.maps.load(() => { setKakaoLoaded(true); }); };
     document.head.appendChild(script);
   }, []);
 
   useEffect(() => {
-    if (kakaoLoaded && stores.length > 0) {
+    if (kakaoLoaded && !mapRef.current) {
       initializeMap();
     }
-  }, [kakaoLoaded, stores, activeCategory]);
+  }, [kakaoLoaded]);
+
+  // 카테고리 변경시 줌 유지하면서 마커만 교체
+  useEffect(() => {
+    if (!mapRef.current || !kakaoLoaded) return;
+    markersRef.current.forEach(marker => marker.setMap(null));
+    markersRef.current = [];
+    if (activeCategory) {
+      const filteredStores = stores.filter(store =>
+        store.category === activeCategory && store.status === 'approved'
+      );
+      filteredStores.forEach(store => createMarker(mapRef.current, store));
+    }
+  }, [activeCategory, stores, stocks]);
 
   useEffect(() => {
     const stocksSubscription = supabase
@@ -102,10 +113,7 @@ function App() {
   const updateNearbyStores = (loc, storeList) => {
     const list = storeList || stores;
     const withDistance = list
-      .map(store => ({
-        ...store,
-        distance: calculateDistance(loc.lat, loc.lng, store.lat, store.lng)
-      }))
+      .map(store => ({ ...store, distance: calculateDistance(loc.lat, loc.lng, store.lat, store.lng) }))
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 10);
     setNearbyStores(withDistance);
@@ -116,16 +124,14 @@ function App() {
       setLoadingCongestion(true);
       const { data: storesData, error: storesError } = await supabase.from('stores').select('*');
       if (storesError) throw storesError;
-
       const { data: stocksData, error: stocksError } = await supabase
         .from('stocks').select('*').order('reported_at', { ascending: false });
       if (stocksError) throw stocksError;
 
       const seoulStores = storesData.filter(store =>
-        store.address.includes('서울') ||
+        store.address?.includes('서울') ||
         (store.lat >= 37.4 && store.lat <= 37.7 && store.lng >= 126.8 && store.lng <= 127.2)
       );
-
       let storesWithCongestion = storesData;
       if (seoulStores.length > 0) {
         try {
@@ -134,11 +140,8 @@ function App() {
             const updatedStore = updatedSeoulStores.find(s => s.id === store.id);
             return updatedStore || store;
           });
-        } catch (error) {
-          console.error('혼잡도 데이터 로드 실패:', error);
-        }
+        } catch (error) { console.error('혼잡도 로드 실패:', error); }
       }
-
       setStores(storesWithCongestion);
       setStocks(stocksData);
       setUserLocation(prev => {
@@ -147,7 +150,6 @@ function App() {
       });
     } catch (error) {
       console.error('데이터 로드 실패:', error);
-      alert('데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoadingCongestion(false);
     }
@@ -175,35 +177,21 @@ function App() {
   };
 
   const moveToMyLocation = () => {
-    if (map && userLocation) {
-      map.setCenter(new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng));
-      map.setLevel(3);
+    if (mapRef.current && userLocation) {
+      mapRef.current.setCenter(new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng));
+      mapRef.current.setLevel(3);
     }
   };
 
   const initializeMap = () => {
     if (!mapContainerRef.current) return;
     if (!window.kakao?.maps) return;
-
     const center = userLocation
       ? new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng)
       : new window.kakao.maps.LatLng(37.5665, 126.9780);
-
-    const mapOption = { center, level: 3 };
-    const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, mapOption);
+    const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, { center, level: 3 });
     setMap(mapInstance);
     mapRef.current = mapInstance;
-
-    markersRef.current.forEach(marker => marker.setMap(null));
-    markersRef.current = [];
-
-    // 카테고리 선택된 경우만 마커 표시
-    if (activeCategory) {
-      const filteredStores = stores.filter(store => store.category === activeCategory);
-      filteredStores.forEach(store => { createMarker(mapInstance, store); });
-    }
-
-    // 내 위치 마커
     if (userLocation) {
       const myMarkerImage = new window.kakao.maps.MarkerImage(
         `data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -215,11 +203,11 @@ function App() {
         new window.kakao.maps.Size(24, 24),
         { offset: new window.kakao.maps.Point(12, 12) }
       );
-      const myMarker = new window.kakao.maps.Marker({
+      new window.kakao.maps.Marker({
         position: new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng),
-        image: myMarkerImage
+        image: myMarkerImage,
+        map: mapInstance
       });
-      myMarker.setMap(mapInstance);
     }
   };
 
@@ -231,7 +219,6 @@ function App() {
     const status = latestStock?.status || '품절';
     const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
     const emoji = CATEGORIES[store.category]?.emoji || '📍';
-
     let opacity = 1;
     if (latestStock) {
       const hoursAgo = (Date.now() - new Date(latestStock.reported_at)) / (1000 * 60 * 60);
@@ -240,28 +227,20 @@ function App() {
       else if (hoursAgo > 6) opacity = 0.7;
       else if (hoursAgo > 2) opacity = 0.85;
     }
-
     const markerImageSrc = `data:image/svg+xml;utf8,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40" opacity="${opacity}">
-        <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z"
-              fill="${statusColor}" stroke="#fff" stroke-width="2"/>
+        <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z" fill="${statusColor}" stroke="#fff" stroke-width="2"/>
         <circle cx="16" cy="16" r="8" fill="#fff"/>
-        <text x="16" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="${statusColor}">
-          ${emoji}
-        </text>
+        <text x="16" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="${statusColor}">${emoji}</text>
       </svg>
     `)}`;
-
     const markerImage = new window.kakao.maps.MarkerImage(
-      markerImageSrc,
-      new window.kakao.maps.Size(32, 40),
+      markerImageSrc, new window.kakao.maps.Size(32, 40),
       { offset: new window.kakao.maps.Point(16, 40) }
     );
-
     const marker = new window.kakao.maps.Marker({ position, image: markerImage });
     marker.setMap(mapInstance);
     markersRef.current.push(marker);
-
     window.kakao.maps.event.addListener(marker, 'click', () => {
       setSelectedStore(store);
       showInfoWindow(mapInstance, marker, store, latestStock);
@@ -270,12 +249,10 @@ function App() {
 
   const showInfoWindow = (mapInstance, marker, store, latestStock) => {
     if (infoWindowRef.current) infoWindowRef.current.close();
-
     const congestionInfo = store.congestion ? formatCongestionInfo(store.congestion) : null;
     const distanceText = store.distance
       ? store.distance < 1 ? `${Math.round(store.distance * 1000)}m` : `${store.distance.toFixed(1)}km`
       : null;
-
     const infoContent = `
       <div class="info-window">
         <div class="info-header">
@@ -285,28 +262,20 @@ function App() {
         </div>
         ${congestionInfo ? `
           <div class="congestion-info">
-            <div class="congestion-badge" style="background-color: ${congestionInfo.color}">
-              ${congestionInfo.icon} ${congestionInfo.level}
-            </div>
+            <div class="congestion-badge" style="background-color: ${congestionInfo.color}">${congestionInfo.icon} ${congestionInfo.level}</div>
             <div class="congestion-details">
               <div class="population">추정 인구: ${congestionInfo.population}</div>
               <div class="location-info">${congestionInfo.locationName} 기준 (${congestionInfo.distance})</div>
             </div>
-          </div>
-        ` : ''}
+          </div>` : ''}
         <div class="stock-info">
           ${latestStock ? `
             <div class="stock-item">
               <span class="item-name">${latestStock.item_name}</span>
-              <span class="stock-status ${latestStock.status}" style="background-color: ${STOCK_STATUS[latestStock.status]?.color}">
-                ${latestStock.status}
-              </span>
+              <span class="stock-status ${latestStock.status}" style="background-color: ${STOCK_STATUS[latestStock.status]?.color}">${latestStock.status}</span>
             </div>
             <div class="stock-quantity">수량: ${latestStock.quantity}개</div>
-            <div class="update-time">
-              ${new Date(latestStock.reported_at).toLocaleDateString('ko-KR')}
-              ${new Date(latestStock.reported_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}
-            </div>
+            <div class="update-time">${new Date(latestStock.reported_at).toLocaleDateString('ko-KR')} ${new Date(latestStock.reported_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}</div>
           ` : `<div class="no-stock">재고 정보 없음</div>`}
         </div>
         <div class="info-actions">
@@ -314,7 +283,6 @@ function App() {
         </div>
       </div>
     `;
-
     const infoWindow = new window.kakao.maps.InfoWindow({ content: infoContent, removable: true });
     infoWindow.open(mapInstance, marker);
     infoWindowRef.current = infoWindow;
@@ -322,16 +290,11 @@ function App() {
 
   const handleSearch = (query) => {
     setSearchQuery(query);
-    if (!query.trim()) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      return;
-    }
+    if (!query.trim()) { setSearchResults([]); setShowSearchResults(false); return; }
     const results = stores.filter(store =>
-      store.name.toLowerCase().includes(query.toLowerCase()) ||
-      store.address.toLowerCase().includes(query.toLowerCase()) ||
-      stocks.filter(s => s.store_id === store.id)
-        .some(s => s.item_name.toLowerCase().includes(query.toLowerCase()))
+      store.name?.toLowerCase().includes(query.toLowerCase()) ||
+      store.address?.toLowerCase().includes(query.toLowerCase()) ||
+      stocks.filter(s => s.store_id === store.id).some(s => s.item_name?.toLowerCase().includes(query.toLowerCase()))
     );
     setSearchResults(results);
     setShowSearchResults(true);
@@ -343,23 +306,30 @@ function App() {
     if (mapRef.current) {
       mapRef.current.setCenter(new window.kakao.maps.LatLng(store.lat, store.lng));
       mapRef.current.setLevel(3);
-    }
-    const latestStock = stocks
-      .filter(s => s.store_id === store.id)
-      .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
-    if (mapRef.current) {
+      const latestStock = stocks.filter(s => s.store_id === store.id).sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
       createMarker(mapRef.current, store);
       showInfoWindow(mapRef.current, null, store, latestStock);
     }
   };
 
+  // 주소 → 좌표 변환
+  const searchAddressToCoords = (address) => {
+    return new Promise((resolve, reject) => {
+      if (!window.kakao?.maps?.services) { reject('카카오맵 서비스 로드 안됨'); return; }
+      const geocoder = new window.kakao.maps.services.Geocoder();
+      geocoder.addressSearch(address, (result, status) => {
+        if (status === window.kakao.maps.services.Status.OK) {
+          resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x) });
+        } else {
+          reject('주소를 찾을 수 없어요.');
+        }
+      });
+    });
+  };
+
   useEffect(() => {
     window.showReportForm = (storeId) => {
-      if (!user) {
-        setShowAuthModal(true);
-        if (infoWindowRef.current) infoWindowRef.current.close();
-        return;
-      }
+      if (!user) { setShowAuthModal(true); if (infoWindowRef.current) infoWindowRef.current.close(); return; }
       setSelectedStore(stores.find(store => store.id === storeId));
       setShowReportForm(true);
       if (infoWindowRef.current) infoWindowRef.current.close();
@@ -369,10 +339,7 @@ function App() {
   const handleSubmitReport = async (e) => {
     e.preventDefault();
     if (!user) { setShowAuthModal(true); return; }
-    if (!selectedStore || !reportData.itemName.trim()) {
-      alert('아이템명을 입력해주세요.');
-      return;
-    }
+    if (!selectedStore || !reportData.itemName.trim()) { alert('아이템명을 입력해주세요.'); return; }
     try {
       const { error } = await supabase.from('stocks').insert({
         store_id: selectedStore.id,
@@ -383,34 +350,37 @@ function App() {
         reported_at: new Date().toISOString()
       });
       if (error) throw error;
-      alert('재고 제보가 완료되었습니다! +10 스팟 포인트 적립! ⭐');
+      alert('재고 제보 완료! +10 스팟 포인트 ⭐');
       setSpotPoints(prev => prev + 10);
       setShowReportForm(false);
       setReportData({ itemName: '', status: '여유', quantity: '' });
-    } catch (error) {
-      alert('재고 제보에 실패했습니다.');
-    }
+    } catch (error) { alert('재고 제보에 실패했습니다.'); }
   };
 
   const handleAddStore = async (e) => {
     e.preventDefault();
     if (!user) { setShowAuthModal(true); return; }
+    setAddressLoading(true);
     try {
+      const coords = await searchAddressToCoords(storeData.address);
       const { error } = await supabase.from('stores').insert({
         name: storeData.name.trim(),
         category: storeData.category,
         address: storeData.address.trim(),
-        lat: parseFloat(storeData.lat),
-        lng: parseFloat(storeData.lng)
+        lat: coords.lat,
+        lng: coords.lng,
+        status: 'pending',
+        owner_id: user.id,
+        owner_email: user.email
       });
       if (error) throw error;
-      alert('가게가 등록되었습니다! +20 스팟 포인트 적립! ⭐');
-      setSpotPoints(prev => prev + 20);
+      alert('가게 등록 신청이 완료됐어요! 관리자 승인 후 표시됩니다 😊');
       setShowAddStoreForm(false);
-      setStoreData({ name: '', category: 'popmart', address: '', lat: '', lng: '' });
-      loadStoresAndStocks();
+      setStoreData({ name: '', category: 'popmart', address: '' });
     } catch (error) {
-      alert('가게 등록에 실패했습니다.');
+      alert(typeof error === 'string' ? error : '가게 등록에 실패했습니다.');
+    } finally {
+      setAddressLoading(false);
     }
   };
 
@@ -419,6 +389,20 @@ function App() {
     setUser(null);
     setSpotPoints(0);
   };
+
+  if (showAdminPage) {
+    return (
+      <div className="app">
+        <header className="header">
+          <div className="header-content">
+            <h1 className="logo">📍 TrendSpot</h1>
+            <button className="logout-btn" onClick={() => setShowAdminPage(false)}>← 돌아가기</button>
+          </div>
+        </header>
+        <Admin user={user} />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -440,6 +424,9 @@ function App() {
                   {user?.user_metadata?.nickname || user?.user_metadata?.name || user?.email?.split('@')[0]}
                   {spotPoints > 0 && <span className="spot-points">⭐ {spotPoints}P</span>}
                 </span>
+                {user.email === ADMIN_EMAIL && (
+                  <button className="admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>
+                )}
                 <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
@@ -448,7 +435,6 @@ function App() {
           </div>
         </div>
 
-        {/* 검색창 */}
         <div className="search-container">
           <input
             type="text"
@@ -460,9 +446,7 @@ function App() {
           {showSearchResults && searchResults.length > 0 && (
             <div className="search-results">
               {searchResults.map(store => {
-                const latestStock = stocks
-                  .filter(s => s.store_id === store.id)
-                  .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+                const latestStock = stocks.filter(s => s.store_id === store.id).sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
                 return (
                   <div key={store.id} className="search-result-item" onClick={() => handleSearchSelect(store)}>
                     <span className="search-emoji">{CATEGORIES[store.category]?.emoji}</span>
@@ -498,18 +482,14 @@ function App() {
             {category.emoji} {category.name}
           </button>
         ))}
-        <button
-          className="tab add-store-tab"
-          onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}
-        >
+        <button className="tab add-store-tab"
+          onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}>
           ➕ 가게 등록
         </button>
       </nav>
 
       {!activeCategory && (
-        <div className="category-hint">
-          카테고리를 선택하면 매장이 표시돼요 👆
-        </div>
+        <div className="category-hint">카테고리를 선택하면 매장이 표시돼요 👆</div>
       )}
 
       <main className="map-container">
@@ -523,7 +503,6 @@ function App() {
             </div>
           ))}
         </div>
-        {/* 내 위치 버튼 */}
         <button className="my-location-btn" onClick={moveToMyLocation}>📍</button>
       </main>
 
@@ -540,14 +519,11 @@ function App() {
               <div className="no-nearby">위치 정보를 불러오는 중...</div>
             ) : (
               nearbyStores.map((store, index) => {
-                const latestStock = stocks
-                  .filter(s => s.store_id === store.id)
-                  .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+                const latestStock = stocks.filter(s => s.store_id === store.id).sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
                 const status = latestStock?.status || '정보없음';
                 const statusColor = STOCK_STATUS[status]?.color || '#999';
                 return (
                   <div key={store.id} className="nearby-item" onClick={() => {
-                    setSelectedStore(store);
                     if (mapRef.current) {
                       mapRef.current.setCenter(new window.kakao.maps.LatLng(store.lat, store.lng));
                       mapRef.current.setLevel(3);
@@ -625,10 +601,13 @@ function App() {
         <div className="modal-overlay" onClick={() => setShowAddStoreForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>🏪 가게 등록</h3>
+              <h3>🏪 가게 등록 신청</h3>
               <button className="close-btn" onClick={() => setShowAddStoreForm(false)}>✕</button>
             </div>
             <div className="modal-body">
+              <p style={{fontSize: '13px', color: '#888', marginBottom: '12px'}}>
+                관리자 승인 후 지도에 표시됩니다 😊
+              </p>
               <form onSubmit={handleAddStore} className="report-form">
                 <div className="form-group">
                   <label>가게명 *</label>
@@ -651,21 +630,11 @@ function App() {
                     onChange={e => setStoreData(prev => ({ ...prev, address: e.target.value }))}
                     placeholder="예: 서울시 강남구 강남대로 123" required />
                 </div>
-                <div className="form-group">
-                  <label>위도 *</label>
-                  <input type="number" step="any" value={storeData.lat}
-                    onChange={e => setStoreData(prev => ({ ...prev, lat: e.target.value }))}
-                    placeholder="예: 37.4979" required />
-                </div>
-                <div className="form-group">
-                  <label>경도 *</label>
-                  <input type="number" step="any" value={storeData.lng}
-                    onChange={e => setStoreData(prev => ({ ...prev, lng: e.target.value }))}
-                    placeholder="예: 127.0276" required />
-                </div>
                 <div className="form-actions">
                   <button type="button" className="btn btn-cancel" onClick={() => setShowAddStoreForm(false)}>취소</button>
-                  <button type="submit" className="btn btn-primary">등록하기</button>
+                  <button type="submit" className="btn btn-primary" disabled={addressLoading}>
+                    {addressLoading ? '주소 변환 중...' : '등록 신청하기'}
+                  </button>
                 </div>
               </form>
             </div>

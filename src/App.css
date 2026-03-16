@@ -770,3 +770,70 @@
   border-color: #28a745 !important;
 }
 
+.admin-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.admin-panel {
+  padding: 20px;
+  overflow-y: auto;
+  height: 100vh;
+}
+
+.admin-panel h2 {
+  font-size: 20px;
+  margin-bottom: 16px;
+}
+
+.admin-store-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  background: white;
+}
+
+.admin-store-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 15px;
+}
+
+.admin-store-info p {
+  font-size: 13px;
+  color: #666;
+  margin: 2px 0;
+}
+
+.admin-store-actions {
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+}
+
+.btn-approve {
+  padding: 8px 14px;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.btn-reject {
+  padding: 8px 14px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
