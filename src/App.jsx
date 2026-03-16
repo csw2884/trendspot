@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import './App.css';
 import { addCongestionToAllStores, formatCongestionInfo } from './utils/seoulCityData';
+import Auth from './components/Auth';
 
 const supabase = createClient(
   'https://pwfhnhunvohyjeqkumqr.supabase.co',
@@ -25,6 +26,7 @@ const STOCK_STATUS = {
 };
 
 function App() {
+  const [user, setUser] = useState(null);
   const [map, setMap] = useState(null);
   const [stores, setStores] = useState([]);
   const [stocks, setStocks] = useState([]);
@@ -43,11 +45,20 @@ function App() {
   const infoWindowRef = useRef(null);
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setUser(session.user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
     loadStoresAndStocks();
     getUserLocation();
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // 아까 잘 됐던 원래 카카오맵 로드 방식
   useEffect(() => {
     if (!window.kakao?.maps) {
       const script = document.createElement('script');
@@ -319,7 +330,7 @@ function App() {
         item_name: reportData.itemName.trim(),
         status: reportData.status,
         quantity: parseInt(reportData.quantity) || 0,
-        reported_by: 'user',
+        reported_by: user?.id || 'anonymous',
         reported_at: new Date().toISOString()
       });
       if (error) throw error;
@@ -332,15 +343,30 @@ function App() {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  if (!user) {
+    return <Auth onLogin={setUser} />;
+  }
+
   return (
     <div className="app">
       <header className="header">
         <div className="header-content">
           <h1 className="logo">📍 TrendSpot</h1>
-          <div className="header-subtitle">
-            실시간 트렌드 재고 공유 플랫폼
-            {loadingCongestion && <span className="loading-indicator">혼잡도 업데이트 중...</span>}
+          <div className="header-right">
+            <span className="user-nickname">
+              {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
+            </span>
+            <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
           </div>
+        </div>
+        <div className="header-subtitle">
+          실시간 트렌드 재고 공유 플랫폼
+          {loadingCongestion && <span className="loading-indicator">혼잡도 업데이트 중...</span>}
         </div>
       </header>
 
