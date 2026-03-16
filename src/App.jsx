@@ -217,40 +217,51 @@ function App() {
   };
 
   const createMarker = (mapInstance, store) => {
-    const position = new window.kakao.maps.LatLng(store.lat, store.lng);
-    const latestStock = stocks
-      .filter(stock => stock.store_id === store.id)
-      .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
-    const status = latestStock?.status || '품절';
-    const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
-    const emoji = CATEGORIES[store.category]?.emoji || '📍';
+  const position = new window.kakao.maps.LatLng(store.lat, store.lng);
+  const latestStock = stocks
+    .filter(stock => stock.store_id === store.id)
+    .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+  const status = latestStock?.status || '품절';
+  const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
+  const emoji = CATEGORIES[store.category]?.emoji || '📍';
 
-    const markerImageSrc = `data:image/svg+xml;utf8,${encodeURIComponent(`
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">
-        <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z"
-              fill="${statusColor}" stroke="#fff" stroke-width="2"/>
-        <circle cx="16" cy="16" r="8" fill="#fff"/>
-        <text x="16" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="${statusColor}">
-          ${emoji}
-        </text>
-      </svg>
-    `)}`;
+  // 시간 감쇠 계산 (오래될수록 흐려짐)
+  let opacity = 1;
+  if (latestStock) {
+    const hoursAgo = (Date.now() - new Date(latestStock.reported_at)) / (1000 * 60 * 60);
+    if (hoursAgo > 24) opacity = 0.3;
+    else if (hoursAgo > 12) opacity = 0.5;
+    else if (hoursAgo > 6) opacity = 0.7;
+    else if (hoursAgo > 2) opacity = 0.85;
+    else opacity = 1;
+  }
 
-    const markerImage = new window.kakao.maps.MarkerImage(
-      markerImageSrc,
-      new window.kakao.maps.Size(32, 40),
-      { offset: new window.kakao.maps.Point(16, 40) }
-    );
+  const markerImageSrc = `data:image/svg+xml;utf8,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40" opacity="${opacity}">
+      <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z"
+            fill="${statusColor}" stroke="#fff" stroke-width="2"/>
+      <circle cx="16" cy="16" r="8" fill="#fff"/>
+      <text x="16" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="${statusColor}">
+        ${emoji}
+      </text>
+    </svg>
+  `)}`;
 
-    const marker = new window.kakao.maps.Marker({ position, image: markerImage });
-    marker.setMap(mapInstance);
-    markersRef.current.push(marker);
+  const markerImage = new window.kakao.maps.MarkerImage(
+    markerImageSrc,
+    new window.kakao.maps.Size(32, 40),
+    { offset: new window.kakao.maps.Point(16, 40) }
+  );
 
-    window.kakao.maps.event.addListener(marker, 'click', () => {
-      setSelectedStore(store);
-      showInfoWindow(mapInstance, marker, store, latestStock);
-    });
-  };
+  const marker = new window.kakao.maps.Marker({ position, image: markerImage });
+  marker.setMap(mapInstance);
+  markersRef.current.push(marker);
+
+  window.kakao.maps.event.addListener(marker, 'click', () => {
+    setSelectedStore(store);
+    showInfoWindow(mapInstance, marker, store, latestStock);
+  });
+};
 
   const showInfoWindow = (mapInstance, marker, store, latestStock) => {
     if (infoWindowRef.current) infoWindowRef.current.close();
