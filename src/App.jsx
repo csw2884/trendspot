@@ -168,14 +168,19 @@ function App() {
     }
   };
 
-  const initializeMap = () => {
-    if (!mapContainerRef.current || stores.length === 0) return;
-    if (!window.kakao?.maps) return;
+const initializeMap = () => {
+  if (!mapContainerRef.current || stores.length === 0) return;
+  if (!window.kakao?.maps) return;
 
-    const mapOption = {
-      center: new window.kakao.maps.LatLng(37.5665, 126.9780),
-      level: 8
-    };
+  // 내 위치가 있으면 내 위치로, 없으면 서울 시청으로
+  const center = userLocation
+    ? new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng)
+    : new window.kakao.maps.LatLng(37.5665, 126.9780);
+
+  const mapOption = {
+    center: center,
+    level: 5  // 더 가까이 보이게 5로 변경
+  };
     const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, mapOption);
     setMap(mapInstance);
 
