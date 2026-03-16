@@ -118,12 +118,15 @@ ${JSON.stringify(context, null, 2)}
           </div>
 
           <div className="ai-messages">
-            {messages.map((msg, i) => (
-              <div key={i} className={`ai-message ${msg.role}`}>
-                {msg.content.split('\n').map((line, j) => (
-                  <span key={j}>{line}<br/></span>
-                ))}
-              </div>
+        {messages.map((msg, i) => (
+             <div key={i} className={`ai-message ${msg.role}`}>
+             {typeof msg.content === 'string' 
+                 ? msg.content.split('\n').map((line, j) => (
+          <span key={j}>{line}<br/></span>
+        ))
+             : msg.content
+            }
+             </div>
             ))}
             {loading && (
               <div className="ai-message assistant">
