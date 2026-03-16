@@ -28,20 +28,26 @@ function App() {
   const [map, setMap] = useState(null);
   const [stores, setStores] = useState([]);
   const [stocks, setStocks] = useState([]);
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState(null); // null = 아무것도 선택 안 함
   const [selectedStore, setSelectedStore] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
+  const [showAddStoreForm, setShowAddStoreForm] = useState(false);
   const [reportData, setReportData] = useState({ itemName: '', status: '여유', quantity: '' });
+  const [storeData, setStoreData] = useState({ name: '', category: 'popmart', address: '', lat: '', lng: '' });
   const [isDevMode] = useState(false);
   const [loadingCongestion, setLoadingCongestion] = useState(false);
   const [nearbyStores, setNearbyStores] = useState([]);
   const [showNearbyPanel, setShowNearbyPanel] = useState(false);
   const [kakaoLoaded, setKakaoLoaded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
   const infoWindowRef = useRef(null);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -72,7 +78,7 @@ function App() {
     if (kakaoLoaded && stores.length > 0) {
       initializeMap();
     }
-  }, [kakaoLoaded, stores]);
+  }, [kakaoLoaded, stores, activeCategory]);
 
   useEffect(() => {
     const stocksSubscription = supabase
@@ -168,31 +174,36 @@ function App() {
     }
   };
 
-const initializeMap = () => {
-  if (!mapContainerRef.current || stores.length === 0) return;
-  if (!window.kakao?.maps) return;
-
-  // 내 위치가 있으면 내 위치로, 없으면 서울 시청으로
-  const center = userLocation
-    ? new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng)
-    : new window.kakao.maps.LatLng(37.5665, 126.9780);
-
-  const mapOption = {
-    center: center,
-    level: 3  // 더 가까이 보이게 5로 변경
+  const moveToMyLocation = () => {
+    if (map && userLocation) {
+      map.setCenter(new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng));
+      map.setLevel(3);
+    }
   };
+
+  const initializeMap = () => {
+    if (!mapContainerRef.current) return;
+    if (!window.kakao?.maps) return;
+
+    const center = userLocation
+      ? new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng)
+      : new window.kakao.maps.LatLng(37.5665, 126.9780);
+
+    const mapOption = { center, level: 3 };
     const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, mapOption);
     setMap(mapInstance);
+    mapRef.current = mapInstance;
 
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
 
-    const filteredStores = activeCategory === 'all'
-      ? stores
-      : stores.filter(store => store.category === activeCategory);
+    // 카테고리 선택된 경우만 마커 표시
+    if (activeCategory) {
+      const filteredStores = stores.filter(store => store.category === activeCategory);
+      filteredStores.forEach(store => { createMarker(mapInstance, store); });
+    }
 
-    filteredStores.forEach(store => { createMarker(mapInstance, store); });
-
+    // 내 위치 마커
     if (userLocation) {
       const myMarkerImage = new window.kakao.maps.MarkerImage(
         `data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -228,7 +239,6 @@ const initializeMap = () => {
       else if (hoursAgo > 12) opacity = 0.5;
       else if (hoursAgo > 6) opacity = 0.7;
       else if (hoursAgo > 2) opacity = 0.85;
-      else opacity = 1;
     }
 
     const markerImageSrc = `data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -263,9 +273,7 @@ const initializeMap = () => {
 
     const congestionInfo = store.congestion ? formatCongestionInfo(store.congestion) : null;
     const distanceText = store.distance
-      ? store.distance < 1
-        ? `${Math.round(store.distance * 1000)}m`
-        : `${store.distance.toFixed(1)}km`
+      ? store.distance < 1 ? `${Math.round(store.distance * 1000)}m` : `${store.distance.toFixed(1)}km`
       : null;
 
     const infoContent = `
@@ -302,9 +310,7 @@ const initializeMap = () => {
           ` : `<div class="no-stock">재고 정보 없음</div>`}
         </div>
         <div class="info-actions">
-          <button class="btn btn-report" onclick="window.showReportForm('${store.id}')">
-            재고 제보하기
-          </button>
+          <button class="btn btn-report" onclick="window.showReportForm('${store.id}')">재고 제보하기</button>
         </div>
       </div>
     `;
@@ -312,6 +318,39 @@ const initializeMap = () => {
     const infoWindow = new window.kakao.maps.InfoWindow({ content: infoContent, removable: true });
     infoWindow.open(mapInstance, marker);
     infoWindowRef.current = infoWindow;
+  };
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+    const results = stores.filter(store =>
+      store.name.toLowerCase().includes(query.toLowerCase()) ||
+      store.address.toLowerCase().includes(query.toLowerCase()) ||
+      stocks.filter(s => s.store_id === store.id)
+        .some(s => s.item_name.toLowerCase().includes(query.toLowerCase()))
+    );
+    setSearchResults(results);
+    setShowSearchResults(true);
+  };
+
+  const handleSearchSelect = (store) => {
+    setShowSearchResults(false);
+    setSearchQuery(store.name);
+    if (mapRef.current) {
+      mapRef.current.setCenter(new window.kakao.maps.LatLng(store.lat, store.lng));
+      mapRef.current.setLevel(3);
+    }
+    const latestStock = stocks
+      .filter(s => s.store_id === store.id)
+      .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+    if (mapRef.current) {
+      createMarker(mapRef.current, store);
+      showInfoWindow(mapRef.current, null, store, latestStock);
+    }
   };
 
   useEffect(() => {
@@ -329,23 +368,10 @@ const initializeMap = () => {
 
   const handleSubmitReport = async (e) => {
     e.preventDefault();
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
+    if (!user) { setShowAuthModal(true); return; }
     if (!selectedStore || !reportData.itemName.trim()) {
       alert('아이템명을 입력해주세요.');
       return;
-    }
-    if (!isDevMode && userLocation) {
-      const distance = calculateDistance(
-        userLocation.lat, userLocation.lng,
-        selectedStore.lat, selectedStore.lng
-      ) * 1000;
-      if (distance > 100) {
-        alert('매장 반경 100m 이내에서만 제보할 수 있습니다.');
-        return;
-      }
     }
     try {
       const { error } = await supabase.from('stocks').insert({
@@ -362,8 +388,29 @@ const initializeMap = () => {
       setShowReportForm(false);
       setReportData({ itemName: '', status: '여유', quantity: '' });
     } catch (error) {
-      console.error('재고 제보 실패:', error);
-      alert('재고 제보에 실패했습니다. 다시 시도해주세요.');
+      alert('재고 제보에 실패했습니다.');
+    }
+  };
+
+  const handleAddStore = async (e) => {
+    e.preventDefault();
+    if (!user) { setShowAuthModal(true); return; }
+    try {
+      const { error } = await supabase.from('stores').insert({
+        name: storeData.name.trim(),
+        category: storeData.category,
+        address: storeData.address.trim(),
+        lat: parseFloat(storeData.lat),
+        lng: parseFloat(storeData.lng)
+      });
+      if (error) throw error;
+      alert('가게가 등록되었습니다! +20 스팟 포인트 적립! ⭐');
+      setSpotPoints(prev => prev + 20);
+      setShowAddStoreForm(false);
+      setStoreData({ name: '', category: 'popmart', address: '', lat: '', lng: '' });
+      loadStoresAndStocks();
+    } catch (error) {
+      alert('가게 등록에 실패했습니다.');
     }
   };
 
@@ -400,21 +447,49 @@ const initializeMap = () => {
             )}
           </div>
         </div>
+
+        {/* 검색창 */}
+        <div className="search-container">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="🔍 가게명, 주소, 아이템 검색..."
+            value={searchQuery}
+            onChange={e => handleSearch(e.target.value)}
+          />
+          {showSearchResults && searchResults.length > 0 && (
+            <div className="search-results">
+              {searchResults.map(store => {
+                const latestStock = stocks
+                  .filter(s => s.store_id === store.id)
+                  .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+                return (
+                  <div key={store.id} className="search-result-item" onClick={() => handleSearchSelect(store)}>
+                    <span className="search-emoji">{CATEGORIES[store.category]?.emoji}</span>
+                    <div>
+                      <div className="search-name">{store.name}</div>
+                      <div className="search-address">{store.address}</div>
+                      {latestStock && <div className="search-stock">{latestStock.item_name} · {latestStock.status}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="header-subtitle">
           실시간 트렌드 재고 공유 플랫폼
-          {loadingCongestion && <span className="loading-indicator">혼잡도 업데이트 중...</span>}
+          {loadingCongestion && <span className="loading-indicator">업데이트 중...</span>}
         </div>
       </header>
 
       <nav className="category-tabs">
-        <button className={`tab ${activeCategory === 'all' ? 'active' : ''}`} onClick={() => setActiveCategory('all')}>
-          🌟 전체
-        </button>
         {Object.entries(CATEGORIES).map(([key, category]) => (
           <button
             key={key}
             className={`tab ${activeCategory === key ? 'active' : ''}`}
-            onClick={() => setActiveCategory(key)}
+            onClick={() => setActiveCategory(activeCategory === key ? null : key)}
             style={{
               backgroundColor: activeCategory === key ? category.color : 'transparent',
               color: activeCategory === key ? 'white' : category.color
@@ -423,7 +498,19 @@ const initializeMap = () => {
             {category.emoji} {category.name}
           </button>
         ))}
+        <button
+          className="tab add-store-tab"
+          onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}
+        >
+          ➕ 가게 등록
+        </button>
       </nav>
+
+      {!activeCategory && (
+        <div className="category-hint">
+          카테고리를 선택하면 매장이 표시돼요 👆
+        </div>
+      )}
 
       <main className="map-container">
         <div ref={mapContainerRef} className="kakao-map" />
@@ -436,6 +523,8 @@ const initializeMap = () => {
             </div>
           ))}
         </div>
+        {/* 내 위치 버튼 */}
+        <button className="my-location-btn" onClick={moveToMyLocation}>📍</button>
       </main>
 
       <div className={`nearby-panel ${showNearbyPanel ? 'open' : ''}`}>
@@ -457,32 +546,24 @@ const initializeMap = () => {
                 const status = latestStock?.status || '정보없음';
                 const statusColor = STOCK_STATUS[status]?.color || '#999';
                 return (
-                  <div
-                    key={store.id}
-                    className="nearby-item"
-                    onClick={() => {
-                      setSelectedStore(store);
-                      if (map) {
-                        map.setCenter(new window.kakao.maps.LatLng(store.lat, store.lng));
-                        map.setLevel(3);
-                      }
-                      setShowNearbyPanel(false);
-                    }}
-                  >
+                  <div key={store.id} className="nearby-item" onClick={() => {
+                    setSelectedStore(store);
+                    if (mapRef.current) {
+                      mapRef.current.setCenter(new window.kakao.maps.LatLng(store.lat, store.lng));
+                      mapRef.current.setLevel(3);
+                    }
+                    setShowNearbyPanel(false);
+                  }}>
                     <span className="nearby-rank">#{index + 1}</span>
                     <span className="nearby-emoji">{CATEGORIES[store.category]?.emoji}</span>
                     <div className="nearby-info">
                       <div className="nearby-name">{store.name}</div>
                       <div className="nearby-meta">
-                        {store.distance < 1
-                          ? `${Math.round(store.distance * 1000)}m`
-                          : `${store.distance.toFixed(1)}km`}
+                        {store.distance < 1 ? `${Math.round(store.distance * 1000)}m` : `${store.distance.toFixed(1)}km`}
                         {latestStock && ` · ${latestStock.item_name}`}
                       </div>
                     </div>
-                    <span className="nearby-status" style={{ backgroundColor: statusColor }}>
-                      {status}
-                    </span>
+                    <span className="nearby-status" style={{ backgroundColor: statusColor }}>{status}</span>
                   </div>
                 );
               })
@@ -491,15 +572,9 @@ const initializeMap = () => {
         )}
       </div>
 
-      {/* AI 어시스턴트 */}
-      <AIAssistant
-        stores={stores}
-        stocks={stocks}
-        user={user}
-        userLocation={userLocation}
-      />
+      <AIAssistant stores={stores} stocks={stocks} user={user} userLocation={userLocation} />
 
-      {/* 재고 제보 폼 모달 */}
+      {/* 재고 제보 폼 */}
       {showReportForm && selectedStore && (
         <div className="modal-overlay" onClick={() => setShowReportForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -516,20 +591,14 @@ const initializeMap = () => {
               <form onSubmit={handleSubmitReport} className="report-form">
                 <div className="form-group">
                   <label>아이템명 *</label>
-                  <input
-                    type="text"
-                    value={reportData.itemName}
+                  <input type="text" value={reportData.itemName}
                     onChange={e => setReportData(prev => ({ ...prev, itemName: e.target.value }))}
-                    placeholder="예: 라부부 크리미 캐릭터"
-                    required
-                  />
+                    placeholder="예: 라부부 크리미 캐릭터" required />
                 </div>
                 <div className="form-group">
                   <label>재고 상태 *</label>
-                  <select
-                    value={reportData.status}
-                    onChange={e => setReportData(prev => ({ ...prev, status: e.target.value }))}
-                  >
+                  <select value={reportData.status}
+                    onChange={e => setReportData(prev => ({ ...prev, status: e.target.value }))}>
                     <option value="여유">🟢 여유</option>
                     <option value="소량">🟡 소량</option>
                     <option value="품절">🔴 품절</option>
@@ -537,17 +606,66 @@ const initializeMap = () => {
                 </div>
                 <div className="form-group">
                   <label>수량 (선택)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={reportData.quantity}
+                  <input type="number" min="0" value={reportData.quantity}
                     onChange={e => setReportData(prev => ({ ...prev, quantity: e.target.value }))}
-                    placeholder="예: 5"
-                  />
+                    placeholder="예: 5" />
                 </div>
                 <div className="form-actions">
                   <button type="button" className="btn btn-cancel" onClick={() => setShowReportForm(false)}>취소</button>
                   <button type="submit" className="btn btn-primary">제보하기</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 가게 등록 폼 */}
+      {showAddStoreForm && (
+        <div className="modal-overlay" onClick={() => setShowAddStoreForm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>🏪 가게 등록</h3>
+              <button className="close-btn" onClick={() => setShowAddStoreForm(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleAddStore} className="report-form">
+                <div className="form-group">
+                  <label>가게명 *</label>
+                  <input type="text" value={storeData.name}
+                    onChange={e => setStoreData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="예: 내 팝마트 가게" required />
+                </div>
+                <div className="form-group">
+                  <label>카테고리 *</label>
+                  <select value={storeData.category}
+                    onChange={e => setStoreData(prev => ({ ...prev, category: e.target.value }))}>
+                    {Object.entries(CATEGORIES).map(([key, cat]) => (
+                      <option key={key} value={key}>{cat.emoji} {cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>주소 *</label>
+                  <input type="text" value={storeData.address}
+                    onChange={e => setStoreData(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="예: 서울시 강남구 강남대로 123" required />
+                </div>
+                <div className="form-group">
+                  <label>위도 *</label>
+                  <input type="number" step="any" value={storeData.lat}
+                    onChange={e => setStoreData(prev => ({ ...prev, lat: e.target.value }))}
+                    placeholder="예: 37.4979" required />
+                </div>
+                <div className="form-group">
+                  <label>경도 *</label>
+                  <input type="number" step="any" value={storeData.lng}
+                    onChange={e => setStoreData(prev => ({ ...prev, lng: e.target.value }))}
+                    placeholder="예: 127.0276" required />
+                </div>
+                <div className="form-actions">
+                  <button type="button" className="btn btn-cancel" onClick={() => setShowAddStoreForm(false)}>취소</button>
+                  <button type="submit" className="btn btn-primary">등록하기</button>
                 </div>
               </form>
             </div>
