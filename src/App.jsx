@@ -5,7 +5,6 @@ import { addCongestionToAllStores, formatCongestionInfo } from './utils/seoulCit
 import Auth from './components/Auth';
 import AIAssistant from './components/AIAssistant';
 
-
 const supabase = createClient(
   'https://pwfhnhunvohyjeqkumqr.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3ZmhuaHVudm9oeWplcWt1bXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NzIzODUsImV4cCI6MjA4OTE0ODM4NX0.wqpsLV5GxR1w8xMQobFY-AquG-ioDoaaNDmhydup0AE'
@@ -30,6 +29,7 @@ const STOCK_STATUS = {
 function App() {
   const [user, setUser] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [spotPoints, setSpotPoints] = useState(0);
   const [map, setMap] = useState(null);
   const [stores, setStores] = useState([]);
   const [stocks, setStocks] = useState([]);
@@ -60,7 +60,6 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 카카오맵 스크립트 로드
   useEffect(() => {
     if (window.kakao?.maps) {
       setKakaoLoaded(true);
@@ -69,14 +68,11 @@ function App() {
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
     script.onload = () => {
-      window.kakao.maps.load(() => {
-        setKakaoLoaded(true);
-      });
+      window.kakao.maps.load(() => { setKakaoLoaded(true); });
     };
     document.head.appendChild(script);
   }, []);
 
-  // 카카오맵 초기화 (kakaoLoaded + stores 둘 다 준비됐을 때)
   useEffect(() => {
     if (kakaoLoaded && stores.length > 0) {
       initializeMap();
@@ -144,12 +140,10 @@ function App() {
 
       setStores(storesWithCongestion);
       setStocks(stocksData);
-
       setUserLocation(prev => {
         if (prev) updateNearbyStores(prev, storesWithCongestion);
         return prev;
       });
-
     } catch (error) {
       console.error('데이터 로드 실패:', error);
       alert('데이터를 불러오는데 실패했습니다.');
@@ -219,51 +213,50 @@ function App() {
   };
 
   const createMarker = (mapInstance, store) => {
-  const position = new window.kakao.maps.LatLng(store.lat, store.lng);
-  const latestStock = stocks
-    .filter(stock => stock.store_id === store.id)
-    .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
-  const status = latestStock?.status || '품절';
-  const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
-  const emoji = CATEGORIES[store.category]?.emoji || '📍';
+    const position = new window.kakao.maps.LatLng(store.lat, store.lng);
+    const latestStock = stocks
+      .filter(stock => stock.store_id === store.id)
+      .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+    const status = latestStock?.status || '품절';
+    const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
+    const emoji = CATEGORIES[store.category]?.emoji || '📍';
 
-  // 시간 감쇠 계산 (오래될수록 흐려짐)
-  let opacity = 1;
-  if (latestStock) {
-    const hoursAgo = (Date.now() - new Date(latestStock.reported_at)) / (1000 * 60 * 60);
-    if (hoursAgo > 24) opacity = 0.3;
-    else if (hoursAgo > 12) opacity = 0.5;
-    else if (hoursAgo > 6) opacity = 0.7;
-    else if (hoursAgo > 2) opacity = 0.85;
-    else opacity = 1;
-  }
+    let opacity = 1;
+    if (latestStock) {
+      const hoursAgo = (Date.now() - new Date(latestStock.reported_at)) / (1000 * 60 * 60);
+      if (hoursAgo > 24) opacity = 0.3;
+      else if (hoursAgo > 12) opacity = 0.5;
+      else if (hoursAgo > 6) opacity = 0.7;
+      else if (hoursAgo > 2) opacity = 0.85;
+      else opacity = 1;
+    }
 
-  const markerImageSrc = `data:image/svg+xml;utf8,${encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40" opacity="${opacity}">
-      <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z"
-            fill="${statusColor}" stroke="#fff" stroke-width="2"/>
-      <circle cx="16" cy="16" r="8" fill="#fff"/>
-      <text x="16" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="${statusColor}">
-        ${emoji}
-      </text>
-    </svg>
-  `)}`;
+    const markerImageSrc = `data:image/svg+xml;utf8,${encodeURIComponent(`
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40" opacity="${opacity}">
+        <path d="M16 0C7.2 0 0 7.2 0 16c0 16 16 24 16 24s16-8 16-24C32 7.2 24.8 0 16 0z"
+              fill="${statusColor}" stroke="#fff" stroke-width="2"/>
+        <circle cx="16" cy="16" r="8" fill="#fff"/>
+        <text x="16" y="20" text-anchor="middle" font-size="12" font-weight="bold" fill="${statusColor}">
+          ${emoji}
+        </text>
+      </svg>
+    `)}`;
 
-  const markerImage = new window.kakao.maps.MarkerImage(
-    markerImageSrc,
-    new window.kakao.maps.Size(32, 40),
-    { offset: new window.kakao.maps.Point(16, 40) }
-  );
+    const markerImage = new window.kakao.maps.MarkerImage(
+      markerImageSrc,
+      new window.kakao.maps.Size(32, 40),
+      { offset: new window.kakao.maps.Point(16, 40) }
+    );
 
-  const marker = new window.kakao.maps.Marker({ position, image: markerImage });
-  marker.setMap(mapInstance);
-  markersRef.current.push(marker);
+    const marker = new window.kakao.maps.Marker({ position, image: markerImage });
+    marker.setMap(mapInstance);
+    markersRef.current.push(marker);
 
-  window.kakao.maps.event.addListener(marker, 'click', () => {
-    setSelectedStore(store);
-    showInfoWindow(mapInstance, marker, store, latestStock);
-  });
-};
+    window.kakao.maps.event.addListener(marker, 'click', () => {
+      setSelectedStore(store);
+      showInfoWindow(mapInstance, marker, store, latestStock);
+    });
+  };
 
   const showInfoWindow = (mapInstance, marker, store, latestStock) => {
     if (infoWindowRef.current) infoWindowRef.current.close();
@@ -364,7 +357,8 @@ function App() {
         reported_at: new Date().toISOString()
       });
       if (error) throw error;
-      alert('재고 제보가 완료되었습니다!');
+      alert('재고 제보가 완료되었습니다! +10 스팟 포인트 적립! ⭐');
+      setSpotPoints(prev => prev + 10);
       setShowReportForm(false);
       setReportData({ itemName: '', status: '여유', quantity: '' });
     } catch (error) {
@@ -376,6 +370,7 @@ function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setSpotPoints(0);
   };
 
   return (
@@ -396,6 +391,7 @@ function App() {
               <>
                 <span className="user-nickname">
                   {user?.user_metadata?.nickname || user?.user_metadata?.name || user?.email?.split('@')[0]}
+                  {spotPoints > 0 && <span className="spot-points">⭐ {spotPoints}P</span>}
                 </span>
                 <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
               </>
@@ -495,6 +491,15 @@ function App() {
         )}
       </div>
 
+      {/* AI 어시스턴트 */}
+      <AIAssistant
+        stores={stores}
+        stocks={stocks}
+        user={user}
+        userLocation={userLocation}
+      />
+
+      {/* 재고 제보 폼 모달 */}
       {showReportForm && selectedStore && (
         <div className="modal-overlay" onClick={() => setShowReportForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
