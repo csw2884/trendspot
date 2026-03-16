@@ -143,8 +143,17 @@ function App() {
           setUserLocation(loc);
           updateNearbyStores(loc);
         },
-        (error) => { console.error('위치 정보 가져오기 실패:', error); }
+        (error) => {
+          console.error('위치 정보 가져오기 실패:', error);
+          const defaultLoc = { lat: 37.5665, lng: 126.9780 };
+          setUserLocation(defaultLoc);
+          updateNearbyStores(defaultLoc);
+        }
       );
+    } else {
+      const defaultLoc = { lat: 37.5665, lng: 126.9780 };
+      setUserLocation(defaultLoc);
+      updateNearbyStores(defaultLoc);
     }
   };
 
@@ -166,7 +175,6 @@ function App() {
 
     filteredStores.forEach(store => { createMarker(mapInstance, store); });
 
-    // 내 위치 마커
     if (userLocation) {
       const myMarkerImage = new window.kakao.maps.MarkerImage(
         `data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -363,7 +371,6 @@ function App() {
             </div>
           ))}
         </div>
-        {isDevMode && <div className="dev-mode-badge">🔧 개발 모드 (GPS 우회)</div>}
       </main>
 
       {/* 내 주변 매장 패널 */}
