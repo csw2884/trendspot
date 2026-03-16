@@ -1,10 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  'https://pwfhnhunvohyjeqkumqr.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3ZmhuaHVudm9oeWplcWt1bXFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1NzIzODUsImV4cCI6MjA4OTE0ODM4NX0.wqpsLV5GxR1w8xMQobFY-AquG-ioDoaaNDmhydup0AE'
-);
 
 function AIAssistant({ stores, stocks, user, userLocation }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,11 +18,9 @@ function AIAssistant({ stores, stocks, user, userLocation }) {
       const latestStock = stocks
         .filter(s => s.store_id === store.id)
         .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
-      
-      const hoursAgo = latestStock 
+      const hoursAgo = latestStock
         ? Math.round((Date.now() - new Date(latestStock.reported_at)) / (1000 * 60 * 60))
         : null;
-
       return {
         name: store.name,
         category: store.category,
@@ -42,28 +34,29 @@ function AIAssistant({ stores, stocks, user, userLocation }) {
       };
     });
 
-    const stockSummary = {
-      total: stores.length,
-      available: stocks.filter(s => s.status === '여유').length,
-      low: stocks.filter(s => s.status === '소량').length,
-      soldOut: stocks.filter(s => s.status === '품절').length,
-      topItems: [...new Set(stocks.map(s => s.item_name))].slice(0, 10)
+    return {
+      stores: storeData,
+      summary: {
+        total: stores.length,
+        available: stocks.filter(s => s.status === '여유').length,
+        low: stocks.filter(s => s.status === '소량').length,
+        soldOut: stocks.filter(s => s.status === '품절').length,
+        topItems: [...new Set(stocks.map(s => s.item_name))].slice(0, 10)
+      }
     };
-
-    return { stores: storeData, summary: stockSummary };
   };
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
-    const userMsg = { role: 'user', content: input };
+    const currentInput = input;
+    const userMsg = { role: 'user', content: currentInput };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
 
     try {
       const context = buildContext();
-      
       const systemPrompt = `당신은 TrendSpot의 AI 어시스턴트입니다. 트렌드 매장의 실시간 재고 정보를 알려주는 역할을 합니다.
 
 현재 매장 데이터:
@@ -77,39 +70,34 @@ ${JSON.stringify(context, null, 2)}
 5. 친근하고 간결하게 답변
 6. 트렌드 분석 시 품절 빈도가 높은 아이템을 인기 아이템으로 판단`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1000,
           system: systemPrompt,
           messages: [
-            ...messages.filter(m => m.role !== 'assistant' || messages.indexOf(m) > 0).map(m => ({
+            ...messages.filter((_, i) => i > 0).map(m => ({
               role: m.role,
               content: m.content
             })),
-            { role: 'user', content: input }
+            { role: 'user', content: currentInput }
           ]
         })
       });
 
       const data = await response.json();
-      const assistantMsg = { 
-        role: 'assistant', 
-        content: data.content[0].text 
-      };
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.content[0].text
+      }]);
 
     } catch (error) {
       console.error('AI 응답 실패:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: '죄송해요, 일시적인 오류가 발생했어요. 다시 시도해주세요!' 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: '죄송해요, 일시적인 오류가 발생했어요. 다시 시도해주세요!'
       }]);
     } finally {
       setLoading(false);
@@ -118,22 +106,15 @@ ${JSON.stringify(context, null, 2)}
 
   return (
     <>
-      {/* AI 버튼 */}
-      <button 
-        className="ai-btn"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        🤖
-      </button>
+      <button className="ai-btn" onClick={() => setIsOpen(!isOpen)}>🤖</button>
 
-      {/* AI 채팅창 */}
       {isOpen && (
         <div className="ai-panel">
           <div className="ai-header">
             <span>🤖 AI 어시스턴트</span>
             <button onClick={() => setIsOpen(false)}>✕</button>
           </div>
-          
+
           <div className="ai-messages">
             {messages.map((msg, i) => (
               <div key={i} className={`ai-message ${msg.role}`}>
