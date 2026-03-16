@@ -332,3 +332,14 @@
   justify-content: space-between;
   align-items: center;
 }
+
+.login-btn {
+  background: #FF6B6B;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}

@@ -27,6 +27,7 @@ const STOCK_STATUS = {
 
 function App() {
   const [user, setUser] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [map, setMap] = useState(null);
   const [stores, setStores] = useState([]);
   const [stocks, setStocks] = useState([]);
@@ -64,9 +65,7 @@ function App() {
       const script = document.createElement('script');
       script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
       script.onload = () => {
-        window.kakao.maps.load(() => {
-          initializeMap();
-        });
+        window.kakao.maps.load(() => { initializeMap(); });
       };
       document.head.appendChild(script);
     } else {
@@ -302,14 +301,23 @@ function App() {
 
   useEffect(() => {
     window.showReportForm = (storeId) => {
+      if (!user) {
+        setShowAuthModal(true);
+        if (infoWindowRef.current) infoWindowRef.current.close();
+        return;
+      }
       setSelectedStore(stores.find(store => store.id === storeId));
       setShowReportForm(true);
       if (infoWindowRef.current) infoWindowRef.current.close();
     };
-  }, [stores]);
+  }, [stores, user]);
 
   const handleSubmitReport = async (e) => {
     e.preventDefault();
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (!selectedStore || !reportData.itemName.trim()) {
       alert('아이템명을 입력해주세요.');
       return;
@@ -348,20 +356,31 @@ function App() {
     setUser(null);
   };
 
-  if (!user) {
-    return <Auth onLogin={setUser} />;
-  }
-
   return (
     <div className="app">
+      {/* 로그인 모달 */}
+      {showAuthModal && (
+        <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
+          <div onClick={e => e.stopPropagation()}>
+            <Auth onLogin={(u) => { setUser(u); setShowAuthModal(false); }} />
+          </div>
+        </div>
+      )}
+
       <header className="header">
         <div className="header-content">
           <h1 className="logo">📍 TrendSpot</h1>
           <div className="header-right">
-            <span className="user-nickname">
-              {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
-            </span>
-            <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
+            {user ? (
+              <>
+                <span className="user-nickname">
+                  {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
+                </span>
+                <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
+              </>
+            ) : (
+              <button className="login-btn" onClick={() => setShowAuthModal(true)}>로그인</button>
+            )}
           </div>
         </div>
         <div className="header-subtitle">
