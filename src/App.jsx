@@ -41,7 +41,6 @@ function App() {
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
   const infoWindowRef = useRef(null);
-  const mapInitializedRef = useRef(false);
 
   useEffect(() => {
     loadStoresAndStocks();
@@ -50,24 +49,7 @@ function App() {
 
   useEffect(() => {
     if (stores.length === 0) return;
-
-    const initMap = () => {
-      if (window.kakao?.maps) {
-        window.kakao.maps.load(() => { initializeMap(); });
-      }
-    };
-
-    if (!window.kakao?.maps) {
-      const existing = document.querySelector('script[src*="dapi.kakao.com"]');
-      if (existing) {
-        existing.addEventListener('load', initMap);
-      } else {
-        const script = document.createElement('script');
-        script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
-        script.onload = initMap;
-        document.head.appendChild(script);
-      }
-    } else {
+    if (window.kakao?.maps) {
       initializeMap();
     }
   }, [stores]);
@@ -171,7 +153,6 @@ function App() {
 
   const initializeMap = () => {
     if (!mapContainerRef.current || stores.length === 0) return;
-
     const mapOption = {
       center: new window.kakao.maps.LatLng(37.5665, 126.9780),
       level: 8
