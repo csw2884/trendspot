@@ -47,9 +47,18 @@ function App() {
     getUserLocation();
   }, []);
 
+  // 아까 잘 됐던 원래 카카오맵 로드 방식
   useEffect(() => {
-    if (stores.length === 0) return;
-    if (window.kakao?.maps) {
+    if (!window.kakao?.maps) {
+      const script = document.createElement('script');
+      script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false`;
+      script.onload = () => {
+        window.kakao.maps.load(() => {
+          initializeMap();
+        });
+      };
+      document.head.appendChild(script);
+    } else {
       initializeMap();
     }
   }, [stores]);
