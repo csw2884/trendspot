@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import './App.css';
 import { addCongestionToAllStores, formatCongestionInfo } from './utils/seoulCityData';
 import Auth from './components/Auth';
+import AIAssistant from './components/AIAssistant';
+
 
 const supabase = createClient(
   'https://pwfhnhunvohyjeqkumqr.supabase.co',
