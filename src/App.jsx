@@ -4,7 +4,6 @@ import { addCongestionToAllStores, formatCongestionInfo } from './utils/seoulCit
 import Auth from './components/Auth';
 import AIAssistant from './components/AIAssistant';
 import Admin from './components/Admin';
-import TrendMain from './components/TrendMain';
 import StoreDetail from './components/StoreDetail';
 import { supabase } from './lib/supabase';
 
@@ -22,16 +21,15 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAdminPage, setShowAdminPage] = useState(false);
   const [spotPoints, setSpotPoints] = useState(0);
-  const [map, setMap] = useState(null);
   const [stores, setStores] = useState([]);
   const [stocks, setStocks] = useState([]);
-  const [selectedTrend, setSelectedTrend] = useState(null); // 선택된 트렌드 키워드
+  const [selectedTrend, setSelectedTrend] = useState(null);
   const [selectedStore, setSelectedStore] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [showAddStoreForm, setShowAddStoreForm] = useState(false);
   const [reportData, setReportData] = useState({ itemName: '', status: '여유', quantity: '' });
-  const [storeData, setStoreData] = useState({ name: '', category: 'popmart', address: '', description: '' });
+  const [storeData, setStoreData] = useState({ name: '', category: 'popmart', address: '' });
   const [addressLoading, setAddressLoading] = useState(false);
   const [loadingCongestion, setLoadingCongestion] = useState(false);
   const [kakaoLoaded, setKakaoLoaded] = useState(false);
@@ -40,11 +38,10 @@ function App() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showStoreDetail, setShowStoreDetail] = useState(false);
   const [storeImage, setStoreImage] = useState(null);
-  const [view, setView] = useState('map');
+  const [trends, setTrends] = useState([]);
 
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
-  const infoWindowRef = useRef(null);
   const mapRef = useRef(null);
 
   useEffect(() => {
@@ -68,15 +65,19 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (kakaoLoaded && view === 'map' && !mapRef.current) {
-      setTimeout(() => initializeMap(), 100);
+    if (kakaoLoaded && !mapRef.current) {
+      initializeMap();
     }
-  }, [kakaoLoaded, view]);
+  }, [kakaoLoaded]);
 
   useEffect(() => {
-    if (!mapRef.current || !kakaoLoaded) return;
+    if (!mapRef.current) return;
     updateMarkers();
   }, [selectedTrend, stores, stocks]);
+
+  useEffect(() => {
+    if (stocks.length > 0) calculateTrends();
+  }, [stocks]);
 
   useEffect(() => {
     const sub = supabase.channel('stocks_channel')
@@ -84,6 +85,30 @@ function App() {
       .subscribe();
     return () => sub.unsubscribe();
   }, []);
+
+  const calculateTrends = () => {
+    const now = Date.now();
+    const scoreMap = {};
+    stocks.forEach(stock => {
+      const itemKey = stock.item_name?.trim().toLowerCase();
+      if (!itemKey) return;
+      const hoursAgo = (now - new Date(stock.reported_at)) / (1000 * 60 * 60);
+      if (hoursAgo > 168) return;
+      if (!scoreMap[itemKey]) {
+        scoreMap[itemKey] = { name: stock.item_name, score: 0, soldOutCount: 0, storeCount: new Set() };
+      }
+      const recencyBonus = hoursAgo < 6 ? 3 : hoursAgo < 24 ? 2 : 1;
+      scoreMap[itemKey].storeCount.add(stock.store_id);
+      if (stock.status === '품절') { scoreMap[itemKey].soldOutCount += 1; scoreMap[itemKey].score += 5 * recencyBonus; }
+      else if (stock.status === '소량') { scoreMap[itemKey].score += 3 * recencyBonus; }
+      else { scoreMap[itemKey].score += 1 * recencyBonus; }
+    });
+    const sorted = Object.values(scoreMap)
+      .map(item => ({ ...item, storeCount: item.storeCount.size }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+    setTrends(sorted);
+  };
 
   const loadStoresAndStocks = async () => {
     try {
@@ -101,7 +126,6 @@ function App() {
           storesWithCongestion = storesWithCongestion.map(s => updated.find(u => u.id === s.id) || s);
         } catch (e) { console.error(e); }
       }
-
       setStores(storesWithCongestion);
       setStocks(stocksData || []);
     } catch (e) {
@@ -120,100 +144,80 @@ function App() {
 
   const initializeMap = () => {
     if (!mapContainerRef.current || !window.kakao?.maps) return;
-    const center = userLocation
-      ? new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng)
-      : new window.kakao.maps.LatLng(37.5665, 126.9780);
+    const center = new window.kakao.maps.LatLng(37.5665, 126.9780);
     const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, { center, level: 5 });
     mapRef.current = mapInstance;
-    setMap(mapInstance);
 
-    if (userLocation) {
-      const myImg = new window.kakao.maps.MarkerImage(
-        `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="#4285F4" stroke="#fff" stroke-width="3"/><circle cx="12" cy="12" r="4" fill="#fff"/></svg>`)}`,
-        new window.kakao.maps.Size(24, 24),
-        { offset: new window.kakao.maps.Point(12, 12) }
-      );
-      new window.kakao.maps.Marker({
-        position: new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng),
-        image: myImg, map: mapInstance
-      });
-    }
-    updateMarkers(mapInstance);
+    if (userLocation) addMyLocationMarker(mapInstance);
   };
 
-  const updateMarkers = (mapInstance) => {
-    const m = mapInstance || mapRef.current;
+  const addMyLocationMarker = (mapInstance) => {
+    const myImg = new window.kakao.maps.MarkerImage(
+      `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="#4285F4" stroke="#fff" stroke-width="3"/><circle cx="12" cy="12" r="4" fill="#fff"/></svg>`)}`,
+      new window.kakao.maps.Size(24, 24),
+      { offset: new window.kakao.maps.Point(12, 12) }
+    );
+    new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng),
+      image: myImg, map: mapInstance
+    });
+  };
+
+  const updateMarkers = () => {
+    const m = mapRef.current;
     if (!m) return;
     markersRef.current.forEach(marker => marker.setMap(null));
     markersRef.current = [];
     if (!selectedTrend) return;
 
-    // 선택된 트렌드 키워드를 가진 재고가 있는 가게만
     const relevantStoreIds = new Set(
-      stocks
-        .filter(s => s.item_name?.toLowerCase().includes(selectedTrend.toLowerCase()))
-        .map(s => s.store_id)
+      stocks.filter(s => s.item_name?.toLowerCase().includes(selectedTrend.toLowerCase())).map(s => s.store_id)
     );
-    const filteredStores = stores.filter(s => relevantStoreIds.has(s.id));
-    filteredStores.forEach(store => createMarker(m, store));
+    stores.filter(s => relevantStoreIds.has(s.id)).forEach(store => createMarker(m, store));
   };
 
-const createMarker = (mapInstance, store) => {
-  const trendStock = selectedTrend
-    ? stocks
-        .filter(s => s.store_id === store.id && s.item_name?.toLowerCase().includes(selectedTrend.toLowerCase()))
-        .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0]
-    : stocks
-        .filter(s => s.store_id === store.id)
-        .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
+  const createMarker = (mapInstance, store) => {
+    const trendStock = stocks
+      .filter(s => s.store_id === store.id && s.item_name?.toLowerCase().includes(selectedTrend?.toLowerCase()))
+      .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
 
-  const status = trendStock?.status || '품절';
-  const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
-  const qty = trendStock?.quantity ?? '?';
+    const status = trendStock?.status || '품절';
+    const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
+    const qty = trendStock?.quantity ?? '?';
 
-  const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
-    <path d="M24 0C10.7 0 0 10.7 0 24c0 24 24 32 24 32s24-8 24-32C48 10.7 37.3 0 24 0z" fill="${statusColor}" stroke="#fff" stroke-width="2"/>
-    <circle cx="24" cy="22" r="14" fill="#fff"/>
-    <text x="24" y="19" text-anchor="middle" font-size="10" fill="#666" font-weight="bold">수량</text>
-    <text x="24" y="32" text-anchor="middle" font-size="13" fill="${statusColor}" font-weight="bold">${qty}개</text>
-  </svg>`;
+    const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
+      <path d="M24 0C10.7 0 0 10.7 0 24c0 24 24 32 24 32s24-8 24-32C48 10.7 37.3 0 24 0z" fill="${statusColor}" stroke="#fff" stroke-width="2"/>
+      <circle cx="24" cy="22" r="14" fill="#fff"/>
+      <text x="24" y="19" text-anchor="middle" font-size="9" fill="#666" font-weight="bold">수량</text>
+      <text x="24" y="31" text-anchor="middle" font-size="12" fill="${statusColor}" font-weight="bold">${qty}개</text>
+    </svg>`;
 
-  const markerImage = new window.kakao.maps.MarkerImage(
-    `data:image/svg+xml;utf8,${encodeURIComponent(markerSvg)}`,
-    new window.kakao.maps.Size(48, 56),
-    { offset: new window.kakao.maps.Point(24, 56) }
-  );
+    const markerImage = new window.kakao.maps.MarkerImage(
+      `data:image/svg+xml;utf8,${encodeURIComponent(markerSvg)}`,
+      new window.kakao.maps.Size(48, 56),
+      { offset: new window.kakao.maps.Point(24, 56) }
+    );
 
-  const marker = new window.kakao.maps.Marker({
-    position: new window.kakao.maps.LatLng(store.lat, store.lng),
-    image: markerImage,
-    map: mapInstance
-  });
-  markersRef.current.push(marker);
+    const marker = new window.kakao.maps.Marker({
+      position: new window.kakao.maps.LatLng(store.lat, store.lng),
+      image: markerImage, map: mapInstance
+    });
+    markersRef.current.push(marker);
 
-  window.kakao.maps.event.addListener(marker, 'click', () => {
-    setSelectedStore(store);
-    setShowStoreDetail(true);
-  });
-};
+    window.kakao.maps.event.addListener(marker, 'click', () => {
+      setSelectedStore(store);
+      setShowStoreDetail(true);
+    });
+  };
 
   const handleSelectTrend = (trendName) => {
-    setSelectedTrend(trendName);
-    setView('map');
-    setTimeout(() => {
-      if (!mapRef.current) {
-        initializeMap();
-      } else {
-        updateMarkers();
-      }
-    }, 150);
+    setSelectedTrend(prev => prev === trendName ? null : trendName);
   };
 
   const handleSearch = (query) => {
     setSearchQuery(query);
     if (!query.trim()) { setSearchResults([]); setShowSearchResults(false); return; }
 
-    // 모든 가게 + 모든 재고 아이템 검색
     const storeResults = stores.filter(store =>
       store.name?.toLowerCase().includes(query.toLowerCase()) ||
       store.address?.toLowerCase().includes(query.toLowerCase())
@@ -239,16 +243,11 @@ const createMarker = (mapInstance, store) => {
     if (result.type === 'store') {
       setSelectedStore(result.data);
       setShowStoreDetail(true);
-      setView('map');
-      setTimeout(() => {
-        if (!mapRef.current) initializeMap();
-        else {
-          mapRef.current.setCenter(new window.kakao.maps.LatLng(result.data.lat, result.data.lng));
-          mapRef.current.setLevel(3);
-        }
-      }, 150);
+      if (mapRef.current) {
+        mapRef.current.setCenter(new window.kakao.maps.LatLng(result.data.lat, result.data.lng));
+        mapRef.current.setLevel(3);
+      }
     } else {
-      // 아이템 검색 → 트렌드로 연결
       handleSelectTrend(result.data.item_name);
     }
   };
@@ -263,7 +262,7 @@ const createMarker = (mapInstance, store) => {
   });
 
   const uploadImage = async (file, path) => {
-    const { data, error } = await supabase.storage.from('store-images').upload(path, file, { upsert: true });
+    const { error } = await supabase.storage.from('store-images').upload(path, file, { upsert: true });
     if (error) throw error;
     const { data: { publicUrl } } = supabase.storage.from('store-images').getPublicUrl(path);
     return publicUrl;
@@ -276,23 +275,19 @@ const createMarker = (mapInstance, store) => {
     try {
       const coords = await searchAddressToCoords(storeData.address);
       let imageUrl = null;
-      if (storeImage) {
-        imageUrl = await uploadImage(storeImage, `stores/${Date.now()}_${storeImage.name}`);
-      }
+      if (storeImage) imageUrl = await uploadImage(storeImage, `stores/${Date.now()}_${storeImage.name}`);
       await supabase.from('stores').insert({
         name: storeData.name.trim(),
         category: storeData.category,
         address: storeData.address.trim(),
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: coords.lat, lng: coords.lng,
         status: 'pending',
-        owner_id: user.id,
-        owner_email: user.email,
+        owner_id: user.id, owner_email: user.email,
         image_url: imageUrl
       });
       alert('가게 등록 신청 완료! 관리자 승인 후 표시됩니다 😊');
       setShowAddStoreForm(false);
-      setStoreData({ name: '', category: 'popmart', address: '', description: '' });
+      setStoreData({ name: '', category: 'popmart', address: '' });
       setStoreImage(null);
     } catch (error) {
       alert(typeof error === 'string' ? error : '가게 등록에 실패했습니다.');
@@ -314,14 +309,9 @@ const createMarker = (mapInstance, store) => {
         reported_by: user.id,
         reported_at: new Date().toISOString()
       });
-
-      // 어뷰징 방지 로그
       await supabase.from('activity_logs').insert({
-        user_id: user.id,
-        action: 'stock_report',
-        target_id: selectedStore.id
+        user_id: user.id, action: 'stock_report', target_id: selectedStore.id
       });
-
       alert('재고 제보 완료! +10 스팟 포인트 ⭐');
       setSpotPoints(prev => prev + 10);
       setShowReportForm(false);
@@ -391,7 +381,6 @@ const createMarker = (mapInstance, store) => {
           </div>
         </div>
 
-        {/* 검색창 */}
         <div className="search-container">
           <input
             type="text"
@@ -404,16 +393,10 @@ const createMarker = (mapInstance, store) => {
             <div className="search-results">
               {searchResults.map((result, i) => (
                 <div key={i} className="search-result-item" onClick={() => handleSearchSelect(result)}>
-                  <span className="search-emoji">
-                    {result.type === 'store' ? '🏪' : '📦'}
-                  </span>
+                  <span className="search-emoji">{result.type === 'store' ? '🏪' : '📦'}</span>
                   <div>
-                    <div className="search-name">
-                      {result.type === 'store' ? result.data.name : result.data.item_name}
-                    </div>
-                    <div className="search-address">
-                      {result.type === 'store' ? result.data.address : `${result.store?.name} · ${result.data.status}`}
-                    </div>
+                    <div className="search-name">{result.type === 'store' ? result.data.name : result.data.item_name}</div>
+                    <div className="search-address">{result.type === 'store' ? result.data.address : `${result.store?.name} · ${result.data.status}`}</div>
                   </div>
                 </div>
               ))}
@@ -427,59 +410,53 @@ const createMarker = (mapInstance, store) => {
         </div>
       </header>
 
-      {/* 탭 */}
-      <div className="view-tabs">
-        <button className={`view-tab ${view === 'trend' ? 'active' : ''}`} onClick={() => setView('trend')}>
-          🔥 트렌드
-        </button>
-        <button className={`view-tab ${view === 'map' ? 'active' : ''}`} onClick={() => { setView('map'); setTimeout(() => { if (!mapRef.current) initializeMap(); }, 100); }}>
-          🗺️ 지도
-        </button>
-        <button className="view-tab add-store-tab" onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}>
+      {/* 트렌드 TOP5 버튼 */}
+      <div className="trend-bar">
+        <span className="trend-bar-title">🔥 TOP</span>
+        {trends.length === 0 ? (
+          <span className="trend-bar-empty">트렌드 분석 중...</span>
+        ) : (
+          trends.map((item, index) => (
+            <button
+              key={item.name}
+              className={`trend-btn ${selectedTrend === item.name ? 'active' : ''}`}
+              onClick={() => handleSelectTrend(item.name)}
+            >
+              <span className="trend-btn-rank">{index + 1}</span>
+              <span className="trend-btn-name">{item.name}</span>
+            </button>
+          ))
+        )}
+        <button className="trend-btn add-store-btn" onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}>
           ➕ 가게 등록
         </button>
       </div>
 
-      {/* 트렌드 뷰 */}
-      {view === 'trend' && (
-<TrendMain
-  stocks={stocks}
-  stores={stores}
-  onSelectTrend={handleSelectTrend}
-  isAdmin={user?.email === ADMIN_EMAIL}
-/>
+      {selectedTrend && (
+        <div className="trend-filter-bar">
+          <span>🔍 <strong>{selectedTrend}</strong> 재고 있는 매장</span>
+          <button onClick={() => setSelectedTrend(null)}>✕ 초기화</button>
+        </div>
       )}
 
-      {/* 지도 뷰 */}
-      {view === 'map' && (
-        <main className="map-container">
-          {selectedTrend && (
-            <div className="trend-filter-bar">
-              <span>🔍 <strong>{selectedTrend}</strong> 재고 있는 매장</span>
-              <button onClick={() => { setSelectedTrend(null); updateMarkers(); }}>✕ 초기화</button>
+      <main className="map-container">
+        <div ref={mapContainerRef} className="kakao-map" />
+        <div className="legend">
+          <div className="legend-title">재고 상태</div>
+          {Object.entries(STOCK_STATUS).map(([status, config]) => (
+            <div key={status} className="legend-item">
+              <div className="legend-color" style={{ backgroundColor: config.color }} />
+              <span>{config.name}</span>
             </div>
-          )}
-          {!selectedTrend && (
-            <div className="category-hint">트렌드를 선택하거나 검색해보세요 👆</div>
-          )}
-          <div ref={mapContainerRef} className="kakao-map" />
-          <div className="legend">
-            <div className="legend-title">재고 상태</div>
-            {Object.entries(STOCK_STATUS).map(([status, config]) => (
-              <div key={status} className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: config.color }} />
-                <span>{config.name}</span>
-              </div>
-            ))}
-          </div>
-          <button className="my-location-btn" onClick={() => {
-            if (mapRef.current && userLocation) {
-              mapRef.current.setCenter(new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng));
-              mapRef.current.setLevel(3);
-            }
-          }}>📍</button>
-        </main>
-      )}
+          ))}
+        </div>
+        <button className="my-location-btn" onClick={() => {
+          if (mapRef.current && userLocation) {
+            mapRef.current.setCenter(new window.kakao.maps.LatLng(userLocation.lat, userLocation.lng));
+            mapRef.current.setLevel(3);
+          }
+        }}>📍</button>
+      </main>
 
       <AIAssistant stores={stores} stocks={stocks} user={user} userLocation={userLocation} />
 
@@ -537,9 +514,7 @@ const createMarker = (mapInstance, store) => {
               <button className="close-btn" onClick={() => setShowAddStoreForm(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p style={{fontSize: '13px', color: '#888', marginBottom: '12px'}}>
-                관리자 승인 후 지도에 표시됩니다 😊
-              </p>
+              <p style={{fontSize: '13px', color: '#888', marginBottom: '12px'}}>관리자 승인 후 지도에 표시됩니다 😊</p>
               <form onSubmit={handleAddStore} className="report-form">
                 <div className="form-group">
                   <label>가게명 *</label>
@@ -566,8 +541,7 @@ const createMarker = (mapInstance, store) => {
                 </div>
                 <div className="form-group">
                   <label>가게 사진 (선택)</label>
-                  <input type="file" accept="image/*"
-                    onChange={e => setStoreImage(e.target.files[0])} />
+                  <input type="file" accept="image/*" onChange={e => setStoreImage(e.target.files[0])} />
                 </div>
                 <div className="form-actions">
                   <button type="button" className="btn btn-cancel" onClick={() => setShowAddStoreForm(false)}>취소</button>
