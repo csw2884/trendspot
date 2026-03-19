@@ -33,9 +33,9 @@ function Admin({ user }) {
     alert('거절됐어요!');
   };
 
-  if (!user || user.email !== ADMIN_EMAIL) {
-    return <div style={{padding: '20px', textAlign: 'center'}}>관리자만 접근 가능해요.</div>;
-  }
+if (!user) {
+  return <div style={{padding: '20px', textAlign: 'center'}}>로그인이 필요해요.</div>;
+}
 
   return (
     <div className="admin-panel">
