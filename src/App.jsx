@@ -9,7 +9,7 @@ import { supabase } from './lib/supabase';
 import OwnerDashboard from './components/OwnerDashboard';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
-const ADMIN_EMAIL = 'csw4274@gmail.com';
+const ADMIN_EMAIL = 'csw42741081@gmail.com';
 
 const STOCK_STATUS = {
   여유: { color: '#28a745', name: '여유' },
