@@ -1,3 +1,5 @@
+
+
 .app {
   display: flex;
   flex-direction: column;
@@ -23,7 +25,40 @@
   color: #888;
   margin-top: 2px;
 }
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
+:root {
+  --primary: #FF6B6B;
+  --primary-light: #FF8E8E;
+  --primary-dark: #E55555;
+  --secondary: #FECA57;
+  --success: #28a745;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --bg: #F8F7F4;
+  --surface: #FFFFFF;
+  --border: #EFEFEF;
+  --text-primary: #1A1A2E;
+  --text-secondary: #6B7280;
+  --text-muted: #9CA3AF;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+}
 .loading-indicator {
   margin-left: 8px;
   color: #FF6B6B;
