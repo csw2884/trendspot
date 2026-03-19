@@ -6,6 +6,7 @@ import AIAssistant from './components/AIAssistant';
 import Admin from './components/Admin';
 import StoreDetail from './components/StoreDetail';
 import { supabase } from './lib/supabase';
+import OwnerDashboard from './components/OwnerDashboard';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 const ADMIN_EMAIL = 'dany4274@naver.com';
@@ -39,6 +40,7 @@ function App() {
   const [showStoreDetail, setShowStoreDetail] = useState(false);
   const [storeImage, setStoreImage] = useState(null);
   const [trends, setTrends] = useState([]);
+  const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
 
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
@@ -350,15 +352,22 @@ useEffect(() => {
         </div>
       )}
 
-      {showStoreDetail && selectedStore && (
-        <StoreDetail
-          store={selectedStore}
-          stocks={stocks}
-          onClose={() => setShowStoreDetail(false)}
-          onReport={(store) => { setSelectedStore(store); setShowStoreDetail(false); setShowReportForm(true); }}
-          user={user}
-        />
-      )}
+{showStoreDetail && selectedStore && (
+  <StoreDetail
+    store={selectedStore}
+    stocks={stocks}
+    onClose={() => setShowStoreDetail(false)}
+    onReport={(store) => { setSelectedStore(store); setShowStoreDetail(false); setShowReportForm(true); }}
+    user={user}
+  />
+)}
+
+{showOwnerDashboard && user && (
+  <OwnerDashboard
+    user={user}
+    onClose={() => setShowOwnerDashboard(false)}
+  />
+)}
 
       <header className="header">
         <div className="header-content">
@@ -373,6 +382,7 @@ useEffect(() => {
                 {user.email === ADMIN_EMAIL && (
                   <button className="admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>
                 )}
+                <button className="owner-btn" onClick={() => setShowOwnerDashboard(true)}>🏪</button>
                 <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (

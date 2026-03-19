@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const STOCK_STATUS = {
@@ -7,19 +7,66 @@ const STOCK_STATUS = {
   품절: { color: '#dc3545' }
 };
 
-function StoreDetail({ store, stocks, onClose, onReport, user, categories }) {
-  const [showAllMenus, setShowAllMenus] = useState(false);
+function StoreDetail({ store, stocks, onClose, onReport, user }) {
+  const [votes, setVotes] = useState({});
+  const [userVotes, setUserVotes] = useState(new Set());
 
-  const storeStocks = stocks
-    .filter(s => s.store_id === store.id)
+  useEffect(() => {
+    loadVotes();
+  }, []);
+
+  const loadVotes = async () => {
+    const storeStockIds = stocks.filter(s => s.store_id === store.id).map(s => s.id);
+    if (storeStockIds.length === 0) return;
+
+    const { data } = await supabase
+      .from('stock_votes')
+      .select('*')
+      .in('stock_id', storeStockIds);
+
+    const voteMap = {};
+    const myVotes = new Set();
+    (data || []).forEach(v => {
+      voteMap[v.stock_id] = (voteMap[v.stock_id] || 0) + 1;
+      if (v.user_id === user?.id) myVotes.add(v.stock_id);
+    });
+    setVotes(voteMap);
+    setUserVotes(myVotes);
+  };
+
+  const handleVote = async (stockId) => {
+    if (!user) return;
+    if (userVotes.has(stockId)) return;
+
+    await supabase.from('stock_votes').insert({ stock_id: stockId, user_id: user.id });
+    setVotes(prev => ({ ...prev, [stockId]: (prev[stockId] || 0) + 1 }));
+    setUserVotes(prev => new Set([...prev, stockId]));
+
+    // 포인트 적립
+    await addPoints(user.id, 2);
+  };
+
+  const addPoints = async (userId, points) => {
+    const { data } = await supabase.from('user_points').select('*').eq('user_id', userId).single();
+    if (data) {
+      await supabase.from('user_points').update({
+        points: data.points + points,
+        total_points: data.total_points + points,
+        updated_at: new Date().toISOString()
+      }).eq('user_id', userId);
+    } else {
+      await supabase.from('user_points').insert({
+        user_id: userId, points, total_points: points
+      });
+    }
+  };
+
+  const storeStocks = stocks.filter(s => s.store_id === store.id)
     .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at));
 
-  // 아이템별 최신 재고만
   const latestByItem = {};
   storeStocks.forEach(stock => {
-    if (!latestByItem[stock.item_name]) {
-      latestByItem[stock.item_name] = stock;
-    }
+    if (!latestByItem[stock.item_name]) latestByItem[stock.item_name] = stock;
   });
   const menuList = Object.values(latestByItem);
 
@@ -45,7 +92,7 @@ function StoreDetail({ store, stocks, onClose, onReport, user, categories }) {
 
         <div className="store-detail-body">
           {menuList.length === 0 ? (
-            <div className="no-menu">아직 등록된 메뉴가 없어요</div>
+            <div className="no-menu">아직 등록된 재고가 없어요</div>
           ) : (
             <>
               <h3 className="menu-section-title">📦 재고 현황</h3>
@@ -58,6 +105,13 @@ function StoreDetail({ store, stocks, onClose, onReport, user, categories }) {
                     <div className="menu-info">
                       <div className="menu-name">{stock.item_name}</div>
                       <div className="menu-time">{timeAgo(stock.reported_at)}</div>
+                      <button
+                        className={`vote-btn ${userVotes.has(stock.id) ? 'voted' : ''}`}
+                        onClick={() => handleVote(stock.id)}
+                        disabled={!user || userVotes.has(stock.id)}
+                      >
+                        👍 도움돼요 {votes[stock.id] || 0}
+                      </button>
                     </div>
                     <div className="menu-right">
                       <span className="menu-qty">{stock.quantity}개</span>
