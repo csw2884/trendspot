@@ -9,7 +9,9 @@ import { supabase } from './lib/supabase';
 import OwnerDashboard from './components/OwnerDashboard';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
-const ADMIN_EMAIL = 'csw42741081@gmail.com';
+
+
+
 
 const STOCK_STATUS = {
   여유: { color: '#28a745', name: '여유' },
@@ -41,22 +43,28 @@ function App() {
   const [storeImage, setStoreImage] = useState(null);
   const [trends, setTrends] = useState([]);
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
   const mapRef = useRef(null);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setUser(session.user);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    loadStoresAndStocks();
-    getUserLocation();
-    return () => subscription.unsubscribe();
-  }, []);
+useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      setUser(session.user);
+      checkAdmin(session.user.email);
+    }
+  });
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user ?? null);
+    if (session?.user) checkAdmin(session.user.email);
+    else setIsAdmin(false);
+  });
+  loadStoresAndStocks();
+  getUserLocation();
+  return () => subscription.unsubscribe();
+}, []);
 
   useEffect(() => {
     if (window.kakao?.maps) { setKakaoLoaded(true); return; }
@@ -136,6 +144,10 @@ useEffect(() => {
       setLoadingCongestion(false);
     }
   };
+  const checkAdmin = async (email) => {
+  const { data } = await supabase.from('admins').select('*').eq('email', email).single();
+  setIsAdmin(!!data);
+};
 
   const getUserLocation = () => {
     navigator.geolocation?.getCurrentPosition(
@@ -337,7 +349,7 @@ useEffect(() => {
             <button className="logout-btn" onClick={() => setShowAdminPage(false)}>← 돌아가기</button>
           </div>
         </header>
-        <Admin user={user} />
+        <Admin user={user} isAdmin={isAdmin} />
       </div>
     );
   }
@@ -379,9 +391,9 @@ useEffect(() => {
                   {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
                   {spotPoints > 0 && <span className="spot-points">⭐ {spotPoints}P</span>}
                 </span>
-                {user.email === ADMIN_EMAIL && (
-                  <button className="admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>
-                )}
+                {isAdmin && (
+  <button className="admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>
+)}
                 <button className="owner-btn" onClick={() => setShowOwnerDashboard(true)}>🏪</button>
                 <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
               </>

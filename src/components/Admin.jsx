@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const ADMIN_EMAIL = 'dany4274@naver.com'; // 관리자 이메일
-
-function Admin({ user }) {
+function Admin({ user, isAdmin }) {
   const [pendingStores, setPendingStores] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPendingStores();
-  }, []);
+    if (isAdmin) loadPendingStores();
+  }, [isAdmin]);
 
   const loadPendingStores = async () => {
     const { data } = await supabase
@@ -24,18 +22,18 @@ function Admin({ user }) {
   const handleApprove = async (id) => {
     await supabase.from('stores').update({ status: 'approved' }).eq('id', id);
     setPendingStores(prev => prev.filter(s => s.id !== id));
-    alert('승인됐어요!');
+    alert('승인됐어요! ✅');
   };
 
   const handleReject = async (id) => {
     await supabase.from('stores').update({ status: 'rejected' }).eq('id', id);
     setPendingStores(prev => prev.filter(s => s.id !== id));
-    alert('거절됐어요!');
+    alert('거절됐어요! ❌');
   };
 
-if (!user) {
-  return <div style={{padding: '20px', textAlign: 'center'}}>로그인이 필요해요.</div>;
-}
+  if (!isAdmin) {
+    return <div style={{padding: '20px', textAlign: 'center'}}>관리자만 접근 가능해요.</div>;
+  }
 
   return (
     <div className="admin-panel">
