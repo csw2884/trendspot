@@ -64,11 +64,11 @@ function App() {
     document.head.appendChild(script);
   }, []);
 
-  useEffect(() => {
-    if (kakaoLoaded && !mapRef.current) {
-      initializeMap();
-    }
-  }, [kakaoLoaded]);
+useEffect(() => {
+  if (kakaoLoaded && !mapRef.current) {
+    setTimeout(() => initializeMap(), 300);
+  }
+}, [kakaoLoaded]);
 
   useEffect(() => {
     if (!mapRef.current) return;
