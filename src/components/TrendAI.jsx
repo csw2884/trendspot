@@ -97,7 +97,17 @@ function TrendAI({ trends, stocks }) {
     }
   }, [trends, stocks]);
 
-  if (!analysis) return null;
+  if (!analysis) return (
+  <div style={{
+    background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+    color: 'rgba(255,255,255,0.5)',
+    padding: '10px 16px',
+    fontSize: '12px',
+    borderBottom: '1px solid rgba(255,255,255,0.1)',
+  }}>
+    🤖 AI 트렌드 분석 준비 중...
+  </div>
+);
 
   return (
     <div style={{
