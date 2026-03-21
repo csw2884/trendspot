@@ -9,6 +9,7 @@ import StoreDetail from './components/StoreDetail';
 import { supabase } from './lib/supabase';
 import OwnerDashboard from './components/OwnerDashboard';
 import TrendAI from './components/TrendAI';
+import PricingModal from './components/PricingModal';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 
@@ -43,6 +44,7 @@ function App() {
   const [trends, setTrends] = useState([]);
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
 
   // 가게 등록 - 카카오 장소 검색
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
@@ -402,9 +404,9 @@ const handleAddStore = async (e) => {
         />
       )}
 
-      {showOwnerDashboard && user && (
-        <OwnerDashboard user={user} onClose={() => setShowOwnerDashboard(false)} />
-      )}
+{showPricing && (
+  <PricingModal onClose={() => setShowPricing(false)} />
+)}
 
       <header className="header">
         <div className="header-content">
@@ -424,7 +426,8 @@ const handleAddStore = async (e) => {
   onClick={() => setShowAddStoreForm(true)}
 >
   + 가게 등록
-</button>
+</button> 
+<button className="btn btn-ghost btn-pill" onClick={() => setShowPricing(true)}>💎 요금제</button>
                 <button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
