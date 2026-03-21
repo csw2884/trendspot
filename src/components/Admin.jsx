@@ -44,12 +44,25 @@ function Admin({ user, isAdmin }) {
       ) : (
         pendingStores.map(store => (
           <div key={store.id} className="admin-store-card">
-            <div className="admin-store-info">
-              <h4>{store.name}</h4>
-              <p>{store.address}</p>
-              <p>카테고리: {store.category}</p>
-              <p>등록자: {store.owner_email}</p>
-            </div>
+<div className="admin-store-info">
+  {store.image_url && (
+    <img
+      src={store.image_url}
+      alt={store.name}
+      style={{
+        width: '100%',
+        maxHeight: '160px',
+        objectFit: 'cover',
+        borderRadius: '8px',
+        marginBottom: '8px'
+      }}
+    />
+  )}
+  <h4>{store.name}</h4>
+  <p>{store.address}</p>
+  <p>카테고리: {store.category}</p>
+  <p>등록자: {store.owner_email}</p>
+</div>
             <div className="admin-store-actions">
               <button className="btn-approve" onClick={() => handleApprove(store.id)}>✅ 승인</button>
               <button className="btn-reject" onClick={() => handleReject(store.id)}>❌ 거절</button>
