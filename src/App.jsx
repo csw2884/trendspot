@@ -117,7 +117,7 @@ useEffect(() => {
       const itemKey = stock.item_name?.trim().toLowerCase();
       if (!itemKey) return;
       const hoursAgo = (now - new Date(stock.reported_at)) / (1000 * 60 * 60);
-      if (hoursAgo > 168) return;
+      //if (hoursAgo > 168) return;
       if (!scoreMap[itemKey]) {
         scoreMap[itemKey] = { name: stock.item_name, score: 0, soldOutCount: 0, storeCount: new Set() };
       }
