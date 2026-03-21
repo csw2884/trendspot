@@ -103,7 +103,6 @@ useEffect(() => {
 }, [darkMode]);
 
 useEffect(() => {
-  console.log('stocks useEffect 실행:', stocks.length);
   calculateTrends();
 }, [stocks]);
   useEffect(() => {
@@ -114,7 +113,6 @@ useEffect(() => {
   }, []);
 
   const calculateTrends = () => {
-    console.log('stocks 개수:', stocks.length); // 이 줄 추가
     const now = Date.now();
     const scoreMap = {};
     stocks.forEach(stock => {
@@ -135,7 +133,6 @@ useEffect(() => {
       .map(item => ({ ...item, storeCount: item.storeCount.size }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
-      console.log('트렌드 계산 결과:', sorted);
     setTrends(sorted);
   };
 
@@ -156,7 +153,6 @@ useEffect(() => {
       }
       setStores(storesWithCongestion);
       setStocks(stocksData || []);
-      console.log('로드된 stocks:', stocksData?.length); // 이 줄 추가
     } catch (e) {
       console.error('데이터 로드 실패:', e);
     } finally {
