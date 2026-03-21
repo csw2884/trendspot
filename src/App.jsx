@@ -285,12 +285,15 @@ function App() {
     }));
   };
 
-  const uploadImage = async (file, path) => {
-    const { error } = await supabase.storage.from('store-images').upload(path, file, { upsert: true });
-    if (error) throw error;
-    const { data: { publicUrl } } = supabase.storage.from('store-images').getPublicUrl(path);
-    return publicUrl;
-  };
+const uploadImage = async (file, path) => {
+  // 파일명 영문/숫자만 남기기
+  const ext = file.name.split('.').pop();
+  const safePath = `stores/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from('store-images').upload(safePath, file, { upsert: true });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from('store-images').getPublicUrl(safePath);
+  return publicUrl;
+};
 
   const handleAddStore = async (e) => {
     e.preventDefault();
