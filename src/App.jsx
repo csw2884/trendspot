@@ -417,7 +417,14 @@ const handleAddStore = async (e) => {
                 </span>
                 {isAdmin && <button className="btn btn-icon admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>}
                 <button className="btn btn-icon owner-btn" onClick={() => setShowOwnerDashboard(true)}>🏪</button>
-                <button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
+                <button
+  className="btn btn-secondary btn-pill"
+  style={{fontSize: '12px', padding: '6px 12px'}}
+  onClick={() => setShowAddStoreForm(true)}
+>
+  + 가게 등록
+</button>
+<button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
               <button className="btn btn-primary btn-pill" onClick={() => setShowAuthModal(true)}>로그인</button>
@@ -455,7 +462,7 @@ const handleAddStore = async (e) => {
         </div>
         <div className="header-subtitle">실시간 트렌드 재고 공유 플랫폼</div>
       </header>
-
+          <TrendAI trends={trends} stocks={stocks} />
       <div className="trend-bar">
         <span className="trend-bar-title">🔥 TOP</span>
         {trends.length === 0 ? (
@@ -472,13 +479,6 @@ const handleAddStore = async (e) => {
             </button>
           ))
         )}
-        <button
-          className="btn btn-secondary btn-pill"
-          style={{fontSize: '13px', padding: '7px 14px'}}
-          onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}
-        >
-          + 가게 등록
-        </button>
       </div>
 
       {selectedTrend && (
