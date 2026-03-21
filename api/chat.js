@@ -39,7 +39,6 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '응답을 받지 못했어요.';
 
-    // AI 질문 로그 저장
     try {
       await supabase.from('activity_logs').insert({
         user_id: user_id || null,
