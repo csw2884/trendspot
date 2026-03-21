@@ -3,13 +3,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { messages, system } = req.body;
 
@@ -33,12 +28,16 @@ export default async function handler(req, res) {
     );
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '응답을 받지 못했어요.';
+    console.log('Gemini 전체 응답:', JSON.stringify(data));
+    
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 
+                 data.error?.message ||
+                 '응답을 받지 못했어요.';
 
     res.status(200).json({ content: [{ type: 'text', text }] });
 
   } catch (error) {
-    console.error('Gemini API 오류:', error);
+    console.error('오류:', error.message);
     res.status(500).json({ error: error.message });
   }
 }
