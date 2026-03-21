@@ -10,13 +10,10 @@ import OwnerDashboard from './components/OwnerDashboard';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 
-
-
-
 const STOCK_STATUS = {
-  여유: { color: '#28a745', name: '여유' },
-  소량: { color: '#ffc107', name: '소량' },
-  품절: { color: '#dc3545', name: '품절' }
+  여유: { color: '#2ED573', name: '여유' },
+  소량: { color: '#FFA502', name: '소량' },
+  품절: { color: '#FF4757', name: '품절' }
 };
 
 function App() {
@@ -49,22 +46,22 @@ function App() {
   const markersRef = useRef([]);
   const mapRef = useRef(null);
 
-useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session) {
-      setUser(session.user);
-      checkAdmin(session.user.email);
-    }
-  });
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    setUser(session?.user ?? null);
-    if (session?.user) checkAdmin(session.user.email);
-    else setIsAdmin(false);
-  });
-  loadStoresAndStocks();
-  getUserLocation();
-  return () => subscription.unsubscribe();
-}, []);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setUser(session.user);
+        checkAdmin(session.user.email);
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) checkAdmin(session.user.email);
+      else setIsAdmin(false);
+    });
+    loadStoresAndStocks();
+    getUserLocation();
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (window.kakao?.maps) { setKakaoLoaded(true); return; }
@@ -74,11 +71,11 @@ useEffect(() => {
     document.head.appendChild(script);
   }, []);
 
-useEffect(() => {
-  if (kakaoLoaded && !mapRef.current) {
-    setTimeout(() => initializeMap(), 300);
-  }
-}, [kakaoLoaded]);
+  useEffect(() => {
+    if (kakaoLoaded && !mapRef.current) {
+      setTimeout(() => initializeMap(), 300);
+    }
+  }, [kakaoLoaded]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -144,10 +141,11 @@ useEffect(() => {
       setLoadingCongestion(false);
     }
   };
+
   const checkAdmin = async (email) => {
-  const { data } = await supabase.from('admins').select('*').eq('email', email).single();
-  setIsAdmin(!!data);
-};
+    const { data } = await supabase.from('admins').select('*').eq('email', email).single();
+    setIsAdmin(!!data);
+  };
 
   const getUserLocation = () => {
     navigator.geolocation?.getCurrentPosition(
@@ -161,7 +159,6 @@ useEffect(() => {
     const center = new window.kakao.maps.LatLng(37.5665, 126.9780);
     const mapInstance = new window.kakao.maps.Map(mapContainerRef.current, { center, level: 5 });
     mapRef.current = mapInstance;
-
     if (userLocation) addMyLocationMarker(mapInstance);
   };
 
@@ -196,7 +193,7 @@ useEffect(() => {
       .sort((a, b) => new Date(b.reported_at) - new Date(a.reported_at))[0];
 
     const status = trendStock?.status || '품절';
-    const statusColor = STOCK_STATUS[status]?.color || '#dc3545';
+    const statusColor = STOCK_STATUS[status]?.color || '#FF4757';
     const qty = trendStock?.quantity ?? '?';
 
     const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
@@ -346,7 +343,7 @@ useEffect(() => {
         <header className="header">
           <div className="header-content">
             <h1 className="logo">📍 TrendSpot</h1>
-            <button className="logout-btn" onClick={() => setShowAdminPage(false)}>← 돌아가기</button>
+            <button className="btn btn-ghost btn-pill" onClick={() => setShowAdminPage(false)}>← 돌아가기</button>
           </div>
         </header>
         <Admin user={user} isAdmin={isAdmin} />
@@ -356,6 +353,7 @@ useEffect(() => {
 
   return (
     <div className="app">
+      {/* 로그인 모달 */}
       {showAuthModal && (
         <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
           <div onClick={e => e.stopPropagation()}>
@@ -364,23 +362,26 @@ useEffect(() => {
         </div>
       )}
 
-{showStoreDetail && selectedStore && (
-  <StoreDetail
-    store={selectedStore}
-    stocks={stocks}
-    onClose={() => setShowStoreDetail(false)}
-    onReport={(store) => { setSelectedStore(store); setShowStoreDetail(false); setShowReportForm(true); }}
-    user={user}
-  />
-)}
+      {/* 가게 상세 */}
+      {showStoreDetail && selectedStore && (
+        <StoreDetail
+          store={selectedStore}
+          stocks={stocks}
+          onClose={() => setShowStoreDetail(false)}
+          onReport={(store) => { setSelectedStore(store); setShowStoreDetail(false); setShowReportForm(true); }}
+          user={user}
+        />
+      )}
 
-{showOwnerDashboard && user && (
-  <OwnerDashboard
-    user={user}
-    onClose={() => setShowOwnerDashboard(false)}
-  />
-)}
+      {/* 사장님 대시보드 */}
+      {showOwnerDashboard && user && (
+        <OwnerDashboard
+          user={user}
+          onClose={() => setShowOwnerDashboard(false)}
+        />
+      )}
 
+      {/* 헤더 */}
       <header className="header">
         <div className="header-content">
           <h1 className="logo">📍 TrendSpot</h1>
@@ -389,28 +390,37 @@ useEffect(() => {
               <>
                 <span className="user-nickname">
                   {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
-                  {spotPoints > 0 && <span className="spot-points">⭐ {spotPoints}P</span>}
+                  {spotPoints > 0 && (
+                    <span className="point-badge">⚡ {spotPoints}P</span>
+                  )}
                 </span>
                 {isAdmin && (
-  <button className="admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>
-)}
-                <button className="owner-btn" onClick={() => setShowOwnerDashboard(true)}>🏪</button>
-                <button className="logout-btn" onClick={handleLogout}>로그아웃</button>
+                  <button className="btn btn-icon admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>
+                )}
+                <button className="btn btn-icon owner-btn" onClick={() => setShowOwnerDashboard(true)}>🏪</button>
+                <button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
-              <button className="login-btn" onClick={() => setShowAuthModal(true)}>로그인</button>
+              <button className="btn btn-primary btn-pill" onClick={() => setShowAuthModal(true)}>로그인</button>
             )}
           </div>
         </div>
 
+        {/* 검색바 */}
         <div className="search-container">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="🔍 가게명, 메뉴, 아이템 검색..."
-            value={searchQuery}
-            onChange={e => handleSearch(e.target.value)}
-          />
+          <div className="search-bar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{flexShrink: 0, color: 'var(--ts-text-muted)'}}>
+              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            <input
+              type="text"
+              placeholder="가게명, 메뉴, 아이템 검색..."
+              value={searchQuery}
+              onChange={e => handleSearch(e.target.value)}
+            />
+            {loadingCongestion && <div className="spinner spinner-sm" />}
+          </div>
           {showSearchResults && searchResults.length > 0 && (
             <div className="search-results">
               {searchResults.map((result, i) => (
@@ -426,48 +436,55 @@ useEffect(() => {
           )}
         </div>
 
-        <div className="header-subtitle">
-          실시간 트렌드 재고 공유 플랫폼
-          {loadingCongestion && <span className="loading-indicator">분석 중...</span>}
-        </div>
+        <div className="header-subtitle">실시간 트렌드 재고 공유 플랫폼</div>
       </header>
 
-      {/* 트렌드 TOP5 버튼 */}
+      {/* 트렌드 TOP5 */}
       <div className="trend-bar">
         <span className="trend-bar-title">🔥 TOP</span>
         {trends.length === 0 ? (
-          <span className="trend-bar-empty">트렌드 분석 중...</span>
+          <>
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="skeleton skeleton-trend-chip" />
+            ))}
+          </>
         ) : (
           trends.map((item, index) => (
             <button
               key={item.name}
-              className={`trend-btn ${selectedTrend === item.name ? 'active' : ''}`}
+              className={`trend-chip ${selectedTrend === item.name ? 'active' : ''}`}
               onClick={() => handleSelectTrend(item.name)}
             >
-              <span className="trend-btn-rank">{index + 1}</span>
-              <span className="trend-btn-name">{item.name}</span>
+              <span className="rank-num">{index + 1}</span>
+              <span>{item.name}</span>
             </button>
           ))
         )}
-        <button className="trend-btn add-store-btn" onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}>
-          ➕ 가게 등록
+        <button
+          className="btn btn-secondary btn-pill"
+          style={{fontSize: '13px', padding: '7px 14px'}}
+          onClick={() => user ? setShowAddStoreForm(true) : setShowAuthModal(true)}
+        >
+          + 가게 등록
         </button>
       </div>
 
+      {/* 선택된 트렌드 필터 바 */}
       {selectedTrend && (
         <div className="trend-filter-bar">
           <span>🔍 <strong>{selectedTrend}</strong> 재고 있는 매장</span>
-          <button onClick={() => setSelectedTrend(null)}>✕ 초기화</button>
+          <button className="btn btn-ghost btn-pill" style={{fontSize: '12px', padding: '4px 12px'}} onClick={() => setSelectedTrend(null)}>✕ 초기화</button>
         </div>
       )}
 
+      {/* 지도 */}
       <main className="map-container">
         <div ref={mapContainerRef} className="kakao-map" />
         <div className="legend">
           <div className="legend-title">재고 상태</div>
           {Object.entries(STOCK_STATUS).map(([status, config]) => (
             <div key={status} className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: config.color }} />
+              <div className="status-dot" style={{ backgroundColor: config.color }} />
               <span>{config.name}</span>
             </div>
           ))}
@@ -497,29 +514,44 @@ useEffect(() => {
               </div>
               <form onSubmit={handleSubmitReport} className="report-form">
                 <div className="form-group">
-                  <label>아이템명 *</label>
-                  <input type="text" value={reportData.itemName}
+                  <label className="input-label">아이템명 *</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={reportData.itemName}
                     onChange={e => setReportData(prev => ({ ...prev, itemName: e.target.value }))}
-                    placeholder="예: 라부부 크리미 캐릭터" required />
+                    placeholder="예: 라부부 크리미 캐릭터"
+                    required
+                  />
                 </div>
                 <div className="form-group">
-                  <label>재고 상태 *</label>
-                  <select value={reportData.status}
-                    onChange={e => setReportData(prev => ({ ...prev, status: e.target.value }))}>
+                  <label className="input-label">재고 상태 *</label>
+                  <select
+                    className="input"
+                    value={reportData.status}
+                    onChange={e => setReportData(prev => ({ ...prev, status: e.target.value }))}
+                  >
                     <option value="여유">🟢 여유</option>
                     <option value="소량">🟡 소량</option>
                     <option value="품절">🔴 품절</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>수량 (선택)</label>
-                  <input type="number" min="0" value={reportData.quantity}
+                  <label className="input-label">수량 (선택)</label>
+                  <input
+                    className="input"
+                    type="number"
+                    min="0"
+                    value={reportData.quantity}
                     onChange={e => setReportData(prev => ({ ...prev, quantity: e.target.value }))}
-                    placeholder="예: 5" />
+                    placeholder="예: 5"
+                  />
                 </div>
                 <div className="form-actions">
-                  <button type="button" className="btn btn-cancel" onClick={() => setShowReportForm(false)}>취소</button>
-                  <button type="submit" className="btn btn-primary">제보하기</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowReportForm(false)}>취소</button>
+                  <button type="submit" className="btn btn-primary">
+                    제보하기 <span className="badge badge-accent" style={{marginLeft: '4px'}}>+10P</span>
+                  </button>
                 </div>
               </form>
             </div>
@@ -536,18 +568,28 @@ useEffect(() => {
               <button className="close-btn" onClick={() => setShowAddStoreForm(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p style={{fontSize: '13px', color: '#888', marginBottom: '12px'}}>관리자 승인 후 지도에 표시됩니다 😊</p>
+              <p style={{fontSize: '13px', color: 'var(--ts-text-secondary)', marginBottom: '16px'}}>
+                관리자 승인 후 지도에 표시됩니다 😊
+              </p>
               <form onSubmit={handleAddStore} className="report-form">
                 <div className="form-group">
-                  <label>가게명 *</label>
-                  <input type="text" value={storeData.name}
+                  <label className="input-label">가게명 *</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={storeData.name}
                     onChange={e => setStoreData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="예: 홍대 버터떡 가게" required />
+                    placeholder="예: 홍대 버터떡 가게"
+                    required
+                  />
                 </div>
                 <div className="form-group">
-                  <label>카테고리 *</label>
-                  <select value={storeData.category}
-                    onChange={e => setStoreData(prev => ({ ...prev, category: e.target.value }))}>
+                  <label className="input-label">카테고리 *</label>
+                  <select
+                    className="input"
+                    value={storeData.category}
+                    onChange={e => setStoreData(prev => ({ ...prev, category: e.target.value }))}
+                  >
                     <option value="popmart">🧸 팝마트</option>
                     <option value="buttertteok">🧈 버터떡</option>
                     <option value="twochoco">🍫 두쫀쿠</option>
@@ -556,19 +598,24 @@ useEffect(() => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>주소 *</label>
-                  <input type="text" value={storeData.address}
+                  <label className="input-label">주소 *</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={storeData.address}
                     onChange={e => setStoreData(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="예: 서울시 마포구 홍대입구역 1번 출구" required />
+                    placeholder="예: 서울시 마포구 홍대입구역 1번 출구"
+                    required
+                  />
                 </div>
                 <div className="form-group">
-                  <label>가게 사진 (선택)</label>
+                  <label className="input-label">가게 사진 (선택)</label>
                   <input type="file" accept="image/*" onChange={e => setStoreImage(e.target.files[0])} />
                 </div>
                 <div className="form-actions">
-                  <button type="button" className="btn btn-cancel" onClick={() => setShowAddStoreForm(false)}>취소</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowAddStoreForm(false)}>취소</button>
                   <button type="submit" className="btn btn-primary" disabled={addressLoading}>
-                    {addressLoading ? '처리 중...' : '등록 신청하기'}
+                    {addressLoading ? <><div className="spinner spinner-sm" /> 처리 중...</> : '등록 신청하기'}
                   </button>
                 </div>
               </form>
