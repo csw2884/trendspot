@@ -1,13 +1,5 @@
-/* ============================================================
-   TrendSpot — index.css
-   Z세대 감성 · 하이퍼로컬 트렌드 플랫폼
-   Pretendard 폰트 · CSS 변수 시스템 · 애니메이션
-   ============================================================ */
-
-/* ---------- 폰트 ---------- */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
 
-/* ---------- CSS 변수 ---------- */
 :root {
   /* 브랜드 컬러 */
   --ts-brand-primary:   #FF4757;   /* 핫핑크 레드 — 트렌드 강조 */
