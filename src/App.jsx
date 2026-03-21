@@ -470,7 +470,9 @@ const handleAddStore = async (e) => {
             </div>
           )}
         </div>
-        <div className="header-subtitle">실시간 트렌드 재고 공유 플랫폼</div>
+        <div className="header-subtitle">
+  🔥 지금 어디서 살 수 있는지, AI가 실시간으로 알려드립니다
+</div>
       </header>
           <TrendAI trends={trends} stocks={stocks} />
           <StatsDashboard stores={stores} stocks={stocks} trends={trends} />
