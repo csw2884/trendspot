@@ -1081,10 +1081,16 @@ body.dark .trend-bar {
   border-bottom: 1px solid #333 !important;
 }
 
-body.dark .trend-chip {
-  background: #222 !important;
-  border-color: #444 !important;
+body.dark .rank-num {
+  color: #aaa !important;
+}
+
+body.dark .trend-bar-title {
   color: #f0f0f0 !important;
+}
+
+body.dark .header-subtitle {
+  color: #ccc !important;
 }
 
 body.dark .trend-chip.active {
