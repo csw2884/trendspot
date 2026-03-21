@@ -131,6 +131,7 @@ useEffect(() => {
       .map(item => ({ ...item, storeCount: item.storeCount.size }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
+      console.log('트렌드 계산 결과:', sorted);
     setTrends(sorted);
   };
 
