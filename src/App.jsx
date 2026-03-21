@@ -1,3 +1,4 @@
+import StatsDashboard from './components/StatsDashboard';
 import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
 import { addCongestionToAllStores } from './utils/seoulCityData';
@@ -424,10 +425,19 @@ const handleAddStore = async (e) => {
 >
   + 가게 등록
 </button>
-<button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
+                <button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
-              <button className="btn btn-primary btn-pill" onClick={() => setShowAuthModal(true)}>로그인</button>
+              <>
+                <button
+                  className="btn btn-secondary btn-pill"
+                  style={{fontSize: '12px', padding: '6px 12px'}}
+                  onClick={() => setShowAuthModal(true)}
+                >
+                  + 가게 등록
+                </button>
+                <button className="btn btn-primary btn-pill" onClick={() => setShowAuthModal(true)}>로그인</button>
+              </>
             )}
           </div>
         </div>
@@ -463,6 +473,7 @@ const handleAddStore = async (e) => {
         <div className="header-subtitle">실시간 트렌드 재고 공유 플랫폼</div>
       </header>
           <TrendAI trends={trends} stocks={stocks} />
+          <StatsDashboard stores={stores} stocks={stocks} trends={trends} />
       <div className="trend-bar">
         <span className="trend-bar-title">🔥 TOP</span>
         {trends.length === 0 ? (
