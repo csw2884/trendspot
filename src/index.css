@@ -1025,3 +1025,90 @@ ul, ol {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 다크모드 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ts-bg: #0f0f0f;
+    --ts-bg-secondary: #1a1a1a;
+    --ts-bg-card: #222;
+    --ts-text: #f0f0f0;
+    --ts-text-secondary: #aaa;
+    --ts-text-muted: #666;
+    --ts-border: #333;
+  }
+
+  .header {
+    background: #111 !important;
+    border-bottom: 1px solid #333 !important;
+  }
+
+  .modal {
+    background: #1a1a1a !important;
+    color: #f0f0f0 !important;
+  }
+
+  .modal-header {
+    border-bottom: 1px solid #333 !important;
+  }
+
+  .input, select {
+    background: #2a2a2a !important;
+    color: #f0f0f0 !important;
+    border-color: #444 !important;
+  }
+
+  .search-bar {
+    background: #1a1a1a !important;
+    border-color: #333 !important;
+  }
+
+  .search-bar input {
+    background: transparent !important;
+    color: #f0f0f0 !important;
+  }
+
+  .search-results {
+    background: #1a1a1a !important;
+    border-color: #333 !important;
+  }
+
+  .search-result-item:hover {
+    background: #2a2a2a !important;
+  }
+
+  .trend-bar {
+    background: #111 !important;
+    border-bottom: 1px solid #333 !important;
+  }
+
+  .trend-chip {
+    background: #222 !important;
+    border-color: #444 !important;
+    color: #f0f0f0 !important;
+  }
+
+  .trend-chip.active {
+    background: var(--ts-primary) !important;
+    color: white !important;
+  }
+
+  .legend {
+    background: rgba(20,20,20,0.95) !important;
+    border-color: #333 !important;
+    color: #f0f0f0 !important;
+  }
+
+  .store-detail {
+    background: #1a1a1a !important;
+    color: #f0f0f0 !important;
+  }
+
+  .btn-ghost {
+    color: #ccc !important;
+  }
+
+  .user-nickname {
+    color: #f0f0f0 !important;
+  }
+}
