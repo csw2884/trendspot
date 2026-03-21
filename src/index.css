@@ -1112,7 +1112,84 @@ body.dark .store-detail {
 body.dark .btn-ghost {
   color: #ccc !important;
 }
+/* 모바일 최적화 */
+@media (max-width: 768px) {
+  .header-content {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 
+  .header-right {
+    gap: 4px !important;
+    flex-wrap: wrap;
+  }
+
+  .btn-pill {
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+  }
+
+  .user-nickname {
+    font-size: 12px !important;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .trend-bar {
+    gap: 6px !important;
+    padding: 8px 12px !important;
+    overflow-x: auto;
+  }
+
+  .trend-chip {
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+    white-space: nowrap;
+  }
+
+  .logo {
+    font-size: 18px !important;
+  }
+
+  .kakao-map {
+    height: calc(100vh - 280px) !important;
+  }
+
+  .legend {
+    bottom: 60px !important;
+    right: 8px !important;
+    font-size: 11px !important;
+    padding: 8px !important;
+  }
+
+  .my-location-btn {
+    bottom: 16px !important;
+    right: 8px !important;
+  }
+
+  .modal {
+    margin: 16px !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+  }
+
+  .ai-assistant {
+    bottom: 70px !important;
+    right: 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-right .btn-ghost:not(:last-child) {
+    display: none;
+  }
+
+  .stats-dashboard {
+    padding: 8px !important;
+  }
+}
 body.dark .user-nickname {
   color: #f0f0f0 !important;
 }
