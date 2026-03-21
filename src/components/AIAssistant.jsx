@@ -89,7 +89,11 @@ ${JSON.stringify(context, null, 2)}
 
         const data = await response.json();
     console.log('API 응답:', data); // 디버깅용
-   const text = data.content?.[0]?.text || '응답을 받지 못했어요.';
+   const text = data.content?.[0]?.text 
+  || data.candidates?.[0]?.content?.parts?.[0]?.text 
+  || data.error 
+  || '응답을 받지 못했어요.';
+  
     setMessages(prev => [...prev, {
     role: 'assistant',
         content: text
