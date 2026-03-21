@@ -1,16 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
-);
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, system, user_id } = req.body;
+  const { messages, system } = req.body;
 
   try {
     const geminiMessages = messages.map(m => ({
@@ -24,14 +17,9 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: system }]
-          },
+          system_instruction: { parts: [{ text: system }] },
           contents: geminiMessages,
-          generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.7
-          }
+          generationConfig: { maxOutputTokens: 1000, temperature: 0.7 }
         })
       }
     );
@@ -39,20 +27,7 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '응답을 받지 못했어요.';
 
-    try {
-      await supabase.from('activity_logs').insert({
-        user_id: user_id || null,
-        action: 'ai_chat',
-        target_id: null,
-        ip_address: req.headers['x-forwarded-for'] || null,
-      });
-    } catch (logError) {
-      console.error('로그 저장 실패:', logError);
-    }
-
-    res.status(200).json({
-      content: [{ type: 'text', text }]
-    });
+    res.status(200).json({ content: [{ type: 'text', text }] });
 
   } catch (error) {
     console.error('Gemini API 오류:', error);
