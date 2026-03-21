@@ -52,6 +52,9 @@ function App() {
   !localStorage.getItem('trendspot_onboarded')
 );
 const [showUserProfile, setShowUserProfile] = useState(false);
+const [darkMode, setDarkMode] = useState(
+  localStorage.getItem('trendspot_dark') === 'true'
+);
 
   // 가게 등록 - 카카오 장소 검색
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
@@ -94,9 +97,10 @@ const [showUserProfile, setShowUserProfile] = useState(false);
     updateMarkers();
   }, [selectedTrend, stores, stocks]);
 
-  useEffect(() => {
-    if (stocks.length > 0) calculateTrends();
-  }, [stocks]);
+useEffect(() => {
+  document.body.classList.toggle('dark', darkMode);
+  localStorage.setItem('trendspot_dark', darkMode);
+}, [darkMode]);
 
   useEffect(() => {
     const sub = supabase.channel('stocks_channel')
@@ -437,7 +441,12 @@ return (
 >
   + 가게 등록
 </button> 
-<button className="btn btn-ghost btn-pill" onClick={() => setShowPricing(true)}>💎 요금제</button>
+<button
+  className="btn btn-ghost btn-pill"
+  onClick={() => setDarkMode(d => !d)}
+>
+  {darkMode ? '☀️' : '🌙'}
+</button>
                 <button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
