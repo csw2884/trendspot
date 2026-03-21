@@ -473,10 +473,11 @@ const handleAddStore = async (e) => {
               ))}
             </div>
           )}
-<div className="header-subtitle" style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
-  <span>🔥 지금 어디서 살 수 있는지, AI가 실시간으로 알려드립니다</span>
-  <OnlineCounter />
-</div>
+        </div>
+        <div className="header-subtitle" style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+          <span>🔥 지금 어디서 살 수 있는지, AI가 실시간으로 알려드립니다</span>
+          <OnlineCounter />
+        </div>
       </header>
           <TrendAI trends={trends} stocks={stocks} />
           <StatsDashboard stores={stores} stocks={stocks} trends={trends} />
