@@ -295,38 +295,46 @@ const uploadImage = async (file, path) => {
   return publicUrl;
 };
 
-  const handleAddStore = async (e) => {
-    e.preventDefault();
-    if (!user) { setShowAuthModal(true); return; }
-    if (!selectedKakaoPlace) { alert('가게를 검색해서 선택해주세요!'); return; }
-    setAddressLoading(true);
-    try {
-      let imageUrl = null;
-      if (storeImage) imageUrl = await uploadImage(storeImage);
-      await supabase.from('stores').insert({
-        name: storeData.name.trim(),
-        category: storeData.category,
-        address: storeData.address.trim(),
-        lat: storeData.lat,
-        lng: storeData.lng,
-        status: 'pending',
-        owner_id: user.id,
-        owner_email: user.email,
-        image_url: imageUrl
-      });
-      alert('가게 등록 신청 완료! 관리자 승인 후 표시됩니다 😊');
-      setShowAddStoreForm(false);
-      setStoreData({ name: '', category: 'popmart', address: '', lat: null, lng: null });
-      setStoreSearchQuery('');
-      setSelectedKakaoPlace(null);
-      setStoreImage(null);
-    } catch (error) {
-      alert('가게 등록에 실패했습니다.');
-      console.error(error);
-    } finally {
-      setAddressLoading(false);
+const handleAddStore = async (e) => {
+  e.preventDefault();
+  if (!user) { setShowAuthModal(true); return; }
+  if (!selectedKakaoPlace) { alert('가게를 검색해서 선택해주세요!'); return; }
+  setAddressLoading(true);
+  try {
+    let imageUrl = null;
+    if (storeImage) {
+      try {
+        imageUrl = await uploadImage(storeImage);
+      } catch (imgError) {
+        console.error('이미지 업로드 실패:', imgError);
+        // 이미지 실패해도 가게 등록은 계속 진행
+      }
     }
-  };
+    const { error } = await supabase.from('stores').insert({
+      name: storeData.name.trim(),
+      category: storeData.category,
+      address: storeData.address.trim(),
+      lat: storeData.lat,
+      lng: storeData.lng,
+      status: 'pending',
+      owner_id: user.id,
+      owner_email: user.email,
+      image_url: imageUrl
+    });
+    if (error) throw error;
+    alert('가게 등록 신청 완료! 관리자 승인 후 표시됩니다 😊');
+    setShowAddStoreForm(false);
+    setStoreData({ name: '', category: 'popmart', address: '', lat: null, lng: null });
+    setStoreSearchQuery('');
+    setSelectedKakaoPlace(null);
+    setStoreImage(null);
+  } catch (error) {
+    alert('가게 등록에 실패했습니다: ' + error.message);
+    console.error(error);
+  } finally {
+    setAddressLoading(false);
+  }
+};
 
   const handleSubmitReport = async (e) => {
     e.preventDefault();
