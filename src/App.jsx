@@ -12,6 +12,7 @@ import TrendAI from './components/TrendAI';
 import PricingModal from './components/PricingModal';
 import OnlineCounter from './components/OnlineCounter';
 import Onboarding from './components/Onboarding';
+import UserProfile from './components/UserProfile';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 
@@ -50,6 +51,7 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(
   !localStorage.getItem('trendspot_onboarded')
 );
+const [showUserProfile, setShowUserProfile] = useState(false);
 
   // 가게 등록 - 카카오 장소 검색
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
@@ -412,8 +414,8 @@ return (
         />
       )}
 
-{showPricing && (
-  <PricingModal onClose={() => setShowPricing(false)} />
+{showUserProfile && (
+  <UserProfile user={user} onClose={() => setShowUserProfile(false)} />
 )}
 
       <header className="header">
@@ -422,7 +424,7 @@ return (
           <div className="header-right">
             {user ? (
               <>
-                <span className="user-nickname">
+                <span className="user-nickname" onClick={() => setShowUserProfile(true)} style={{cursor:'pointer'}}>
                   {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
                   {spotPoints > 0 && <span className="point-badge">⚡ {spotPoints}P</span>}
                 </span>
