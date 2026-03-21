@@ -302,7 +302,7 @@ const uploadImage = async (file, path) => {
     setAddressLoading(true);
     try {
       let imageUrl = null;
-      if (storeImage) imageUrl = await uploadImage(storeImage, `stores/${Date.now()}_${storeImage.name}`);
+      if (storeImage) imageUrl = await uploadImage(storeImage);
       await supabase.from('stores').insert({
         name: storeData.name.trim(),
         category: storeData.category,
