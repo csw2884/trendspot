@@ -10,6 +10,7 @@ import { supabase } from './lib/supabase';
 import OwnerDashboard from './components/OwnerDashboard';
 import TrendAI from './components/TrendAI';
 import PricingModal from './components/PricingModal';
+import OnlineCounter from './components/OnlineCounter';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 
@@ -472,9 +473,9 @@ const handleAddStore = async (e) => {
               ))}
             </div>
           )}
-        </div>
-        <div className="header-subtitle">
-  🔥 지금 어디서 살 수 있는지, AI가 실시간으로 알려드립니다
+<div className="header-subtitle" style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+  <span>🔥 지금 어디서 살 수 있는지, AI가 실시간으로 알려드립니다</span>
+  <OnlineCounter />
 </div>
       </header>
           <TrendAI trends={trends} stocks={stocks} />
