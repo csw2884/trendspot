@@ -151,6 +151,7 @@ useEffect(() => {
       }
       setStores(storesWithCongestion);
       setStocks(stocksData || []);
+      console.log('로드된 stocks:', stocksData?.length); // 이 줄 추가
     } catch (e) {
       console.error('데이터 로드 실패:', e);
     } finally {
