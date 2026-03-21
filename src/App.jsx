@@ -7,6 +7,7 @@ import Admin from './components/Admin';
 import StoreDetail from './components/StoreDetail';
 import { supabase } from './lib/supabase';
 import OwnerDashboard from './components/OwnerDashboard';
+import TrendAI from './components/TrendAI';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 
