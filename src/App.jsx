@@ -110,6 +110,7 @@ useEffect(() => {
   }, []);
 
   const calculateTrends = () => {
+    console.log('stocks 개수:', stocks.length); // 이 줄 추가
     const now = Date.now();
     const scoreMap = {};
     stocks.forEach(stock => {
