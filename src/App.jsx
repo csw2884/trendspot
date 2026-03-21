@@ -102,6 +102,10 @@ useEffect(() => {
   localStorage.setItem('trendspot_dark', darkMode);
 }, [darkMode]);
 
+useEffect(() => {
+  console.log('stocks useEffect 실행:', stocks.length);
+  calculateTrends();
+}, [stocks]);
   useEffect(() => {
     const sub = supabase.channel('stocks_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stocks' }, () => loadStoresAndStocks())
