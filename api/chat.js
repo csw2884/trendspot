@@ -40,12 +40,16 @@ export default async function handler(req, res) {
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '응답을 받지 못했어요.';
 
     // AI 질문 로그 저장
-    await supabase.from('activity_logs').insert({
-      user_id: user_id || null,
-      action: 'ai_chat',
-      target_id: null,
-      ip_address: req.headers['x-forwarded-for'] || null,
-    }).catch(e => console.error('로그 저장 실패:', e));
+    try {
+      await supabase.from('activity_logs').insert({
+        user_id: user_id || null,
+        action: 'ai_chat',
+        target_id: null,
+        ip_address: req.headers['x-forwarded-for'] || null,
+      });
+    } catch (logError) {
+      console.error('로그 저장 실패:', logError);
+    }
 
     res.status(200).json({
       content: [{ type: 'text', text }]
