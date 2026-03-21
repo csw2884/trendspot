@@ -11,6 +11,7 @@ import OwnerDashboard from './components/OwnerDashboard';
 import TrendAI from './components/TrendAI';
 import PricingModal from './components/PricingModal';
 import OnlineCounter from './components/OnlineCounter';
+import Onboarding from './components/Onboarding';
 
 const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
 
@@ -46,6 +47,9 @@ function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(
+  !localStorage.getItem('trendspot_onboarded')
+);
 
   // 가게 등록 - 카카오 장소 검색
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
@@ -385,9 +389,12 @@ const handleAddStore = async (e) => {
     );
   }
 
-  return (
-    <div className="app">
-      {showAuthModal && (
+return (
+  <div className="app">
+    {showOnboarding && (
+      <Onboarding onComplete={() => setShowOnboarding(false)} />
+    )}
+    {showAuthModal && (
         <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
           <div onClick={e => e.stopPropagation()}>
             <Auth onLogin={(u) => { setUser(u); setShowAuthModal(false); }} />
