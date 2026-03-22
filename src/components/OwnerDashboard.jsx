@@ -252,12 +252,33 @@ function OwnerDashboard({ user, onClose }) {
               </div>
               <div className="modal-body">
                 <form onSubmit={handleAddStock} className="report-form">
-                  <div className="form-group">
-                    <label>상품명 *</label>
-                    <input type="text" value={stockForm.item_name}
-                      onChange={e => setStockForm(p => ({ ...p, item_name: e.target.value }))}
-                      placeholder="예: 버터떡 오리지널" required />
-                  </div>
+<div className="form-group">
+  <label>상품명 *</label>
+  {/* 기존 트렌드 아이템 선택 */}
+  <div style={{ marginBottom: '8px' }}>
+    <p style={{ fontSize: '11px', color: '#999', marginBottom: '6px' }}>
+      🔥 현재 트렌드 아이템 선택
+    </p>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+      {['라부부 크리미 시리즈', '버터떡 오리지널', '두쫀쿠 오리지널', '라부부 홀리데이 시리즈', '조던1 레트로 하이 OG'].map(name => (
+        <button key={name} type="button"
+          onClick={() => setStockForm(p => ({ ...p, item_name: name }))}
+          style={{
+            fontSize: '11px', padding: '4px 10px',
+            background: stockForm.item_name === name ? '#FF4757' : '#f0f0f0',
+            color: stockForm.item_name === name ? 'white' : '#555',
+            border: 'none', borderRadius: '20px', cursor: 'pointer'
+          }}>
+          {name}
+        </button>
+      ))}
+    </div>
+  </div>
+  <p style={{ fontSize: '11px', color: '#999', marginBottom: '4px' }}>또는 직접 입력</p>
+  <input type="text" value={stockForm.item_name}
+    onChange={e => setStockForm(p => ({ ...p, item_name: e.target.value }))}
+    placeholder="예: 버터떡 오리지널" required />
+</div>
                   <div className="form-group">
                     <label>재고 상태 *</label>
                     <select value={stockForm.status}
