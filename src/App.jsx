@@ -562,12 +562,32 @@ return (
                 <p>{selectedStore.address}</p>
               </div>
               <form onSubmit={handleSubmitReport} className="report-form">
-                <div className="form-group">
-                  <label className="input-label">아이템명 *</label>
-                  <input className="input" type="text" value={reportData.itemName}
-                    onChange={e => setReportData(prev => ({ ...prev, itemName: e.target.value }))}
-                    placeholder="예: 라부부 크리미 캐릭터" required />
-                </div>
+<div className="form-group">
+  <label className="input-label">아이템명 *</label>
+  {/* 이 가게에 기존 등록된 아이템 */}
+  {stocks.filter(s => s.store_id === selectedStore?.id).length > 0 && (
+    <div style={{ marginBottom: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+      {[...new Set(stocks.filter(s => s.store_id === selectedStore?.id).map(s => s.item_name))].map(name => (
+        <button
+          key={name}
+          type="button"
+          onClick={() => setReportData(prev => ({ ...prev, itemName: name }))}
+          style={{
+            fontSize: '12px', padding: '4px 10px',
+            background: reportData.itemName === name ? 'var(--ts-primary)' : '#f0f0f0',
+            color: reportData.itemName === name ? 'white' : '#555',
+            border: 'none', borderRadius: '20px', cursor: 'pointer'
+          }}
+        >
+          {name}
+        </button>
+      ))}
+    </div>
+  )}
+  <input className="input" type="text" value={reportData.itemName}
+    onChange={e => setReportData(prev => ({ ...prev, itemName: e.target.value }))}
+    placeholder="새 아이템이면 직접 입력하세요" required />
+</div>
                 <div className="form-group">
                   <label className="input-label">재고 상태 *</label>
                   <select className="input" value={reportData.status}
