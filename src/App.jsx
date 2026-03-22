@@ -404,10 +404,14 @@ function App() {
       .eq('action', 'stock_report')
       .gte('created_at', today.toISOString());
 
-    if (todayLogs && todayLogs.length >= 3) {
-      alert('오늘 제보 횟수(3회)를 모두 사용했어요.\n내일 다시 제보할 수 있어요! 😊');
-      return;
-    }
+const userPoints = await supabase.from('user_points').select('points').eq('user_id', user.id).single();
+const pts = userPoints?.data?.points || 0;
+const dailyLimit = pts >= 300 ? 10 : pts >= 100 ? 5 : 3;
+
+if (todayLogs && todayLogs.length >= dailyLimit) {
+  alert(`오늘 제보 횟수(${dailyLimit}회)를 모두 사용했어요.\n등급을 올리면 더 많이 제보할 수 있어요! 😊`);
+  return;
+}
 
     try {
       await supabase.from('stocks').insert({
