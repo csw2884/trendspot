@@ -471,6 +471,7 @@ function App() {
           stocks={stocks}
           onClose={() => setShowStoreDetail(false)}
           onReport={(store) => { setSelectedStore(store); setShowStoreDetail(false); setShowReportForm(true); }}
+          selectedTrend={selectedTrend}
           user={user}
         />
       )}

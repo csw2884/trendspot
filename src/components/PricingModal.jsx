@@ -11,41 +11,42 @@ function PricingModal({ onClose }) {
         '실시간 재고 지도 조회',
         '트렌드 TOP5 확인',
         'AI 트렌드 분석',
-        '재고 제보 (+포인트)',
-        '가게 즐겨찾기 3개',
+        '재고 제보 (+10P)',
+        '품절 알림',
+        '광고 포함',
       ],
       cta: '현재 이용 중',
       disabled: true,
     },
     {
-      name: '스팟 프리미엄',
-      price: '₩2,900',
+      name: '스팟 멤버십',
+      price: '₩990',
       period: '/월',
       color: '#FFA502',
       emoji: '⭐',
       badge: 'POPULAR',
       features: [
         '일반 유저 모든 기능',
-        '품절 알림 푸시 알림',
-        '가게 즐겨찾기 무제한',
-        '주간 트렌드 리포트 PDF',
         '광고 없는 환경',
+        'AI 상세분석 무제한',
+        '우선 품절 알림',
+        '포인트 500P로 교환 가능',
       ],
       cta: '준비 중',
       disabled: true,
     },
     {
       name: '사장님 플랜',
-      price: '₩9,900',
+      price: '₩12,900',
       period: '/월',
       color: '#FF4757',
       emoji: '🏪',
       features: [
         '내 가게 재고 직접 관리',
-        '실시간 방문자 통계',
-        '품절 예측 리포트',
-        '고객 행동 분석',
-        '프리미엄 가게 배지',
+        '방문자 통계',
+        '지도 상단 노출',
+        '월간 트렌드 리포트',
+        '포인트 1,500P로 교환 가능',
       ],
       cta: '준비 중',
       disabled: true,
@@ -80,22 +81,18 @@ function PricingModal({ onClose }) {
         maxHeight: '90vh', overflowY: 'auto',
       }} onClick={e => e.stopPropagation()}>
 
-        {/* 헤더 */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <button onClick={onClose} style={{
             float: 'right', background: 'none', border: 'none',
             fontSize: '20px', cursor: 'pointer', color: '#999'
           }}>✕</button>
           <div style={{ fontSize: '28px', marginBottom: '8px' }}>💎</div>
-          <h2 style={{ fontSize: '22px', fontWeight: '800', margin: '0 0 8px' }}>
-            TrendSpot 요금제
-          </h2>
+          <h2 style={{ fontSize: '22px', fontWeight: '800', margin: '0 0 8px' }}>있템 요금제</h2>
           <p style={{ fontSize: '14px', color: '#666', margin: 0 }}>
             트렌드를 먼저 아는 사람이 기회를 잡습니다
           </p>
         </div>
 
-        {/* 플랜 카드 */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -160,12 +157,8 @@ function PricingModal({ onClose }) {
           ))}
         </div>
 
-        {/* 하단 문구 */}
-        <div style={{
-          textAlign: 'center', marginTop: '20px',
-          fontSize: '12px', color: '#999'
-        }}>
-          💡 현재 베타 서비스 운영 중 · 정식 출시 시 얼리버드 혜택 제공 예정
+        <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: '#999' }}>
+          💡 현재 베타 서비스 운영 중 · 포인트 500P로 스팟 멤버십 1개월 교환 가능 (준비 중)
         </div>
       </div>
     </div>
