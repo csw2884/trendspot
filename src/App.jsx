@@ -389,7 +389,7 @@ const handleAddStore = async (e) => {
       <div className="app">
         <header className="header">
           <div className="header-content">
-            <h1 className="logo">📍 TrendSpot</h1>
+            <h1 className="logo">있템</h1>
             <button className="btn btn-ghost btn-pill" onClick={() => setShowAdminPage(false)}>← 돌아가기</button>
           </div>
         </header>
@@ -496,7 +496,7 @@ return (
           )}
         </div>
         <div className="header-subtitle" style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
-          <span>🔥 지금 어디서 살 수 있는지, AI가 실시간으로 알려드립니다</span>
+          <span>🔥 있어? 있템! 실시간 트렌드 재고 공유 플랫폼</span>
           <OnlineCounter />
         </div>
       </header>
