@@ -3,20 +3,32 @@ import { supabase } from '../lib/supabase';
 
 const GRADES = {
   bronze: { label: '브론즈', emoji: '🥉', color: '#CD7F32', minPoints: 0, dailyReports: 3, aiUnlimited: false },
-  silver: { label: '실버', emoji: '🥈', color: '#C0C0C0', minPoints: 100, dailyReports: 5, aiUnlimited: false },
+  silver: { label: '실버', emoji: '🥈', color: '#A8A8A8', minPoints: 100, dailyReports: 5, aiUnlimited: false },
   gold: { label: '골드', emoji: '🥇', color: '#FFD700', minPoints: 300, dailyReports: 10, aiUnlimited: true },
 };
 
+const GRADE_BENEFITS = {
+  bronze: ['하루 제보 3회', 'AI 트렌드 분석', '품절 알림'],
+  silver: ['하루 제보 5회 ⬆️', 'AI 트렌드 분석', '품절 알림', '실버 뱃지'],
+  gold: ['하루 제보 10회 ⬆️', 'AI 상세분석 무제한 ⬆️', '품절 알림', '골드 뱃지', '우선 알림'],
+};
+
+const GRADE_ROADMAP = [
+  { key: 'bronze', ...GRADES.bronze, benefits: '하루 제보 3회 · AI 분석 · 품절 알림' },
+  { key: 'silver', ...GRADES.silver, benefits: '하루 제보 5회 · 실버 뱃지' },
+  { key: 'gold', ...GRADES.gold, benefits: '하루 제보 10회 · AI 무제한 · 골드 뱃지 · 우선 알림' },
+];
+
 function getGrade(points) {
-  if (points >= 300) return GRADES.gold;
-  if (points >= 100) return GRADES.silver;
-  return GRADES.bronze;
+  if (points >= 300) return { key: 'gold', ...GRADES.gold };
+  if (points >= 100) return { key: 'silver', ...GRADES.silver };
+  return { key: 'bronze', ...GRADES.bronze };
 }
 
 function getNextGrade(points) {
   if (points >= 300) return null;
-  if (points >= 100) return { ...GRADES.gold, needed: 300 - points };
-  return { ...GRADES.silver, needed: 100 - points };
+  if (points >= 100) return { ...GRADES.gold, key: 'gold', needed: 300 - points };
+  return { ...GRADES.silver, key: 'silver', needed: 100 - points };
 }
 
 function UserProfile({ user, onClose }) {
@@ -51,14 +63,6 @@ function UserProfile({ user, onClose }) {
   const grade = getGrade(points);
   const nextGrade = getNextGrade(points);
 
-  const GRADE_BENEFITS = {
-    bronze: ['하루 제보 3회', 'AI 트렌드 분석', '품절 알림'],
-    silver: ['하루 제보 5회 ⬆️', 'AI 트렌드 분석', '품절 알림', '실버 뱃지'],
-    gold: ['하루 제보 10회 ⬆️', 'AI 상세분석 무제한 ⬆️', '품절 알림', '골드 뱃지', '우선 알림'],
-  };
-
-  const gradeKey = points >= 300 ? 'gold' : points >= 100 ? 'silver' : 'bronze';
-
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000,
@@ -72,6 +76,7 @@ function UserProfile({ user, onClose }) {
         maxHeight: '90vh', overflowY: 'auto',
       }} onClick={e => e.stopPropagation()}>
 
+        {/* 헤더 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800' }}>내 프로필</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', color: '#999' }}>✕</button>
@@ -108,7 +113,7 @@ function UserProfile({ user, onClose }) {
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               {[
                 { label: '스팟 포인트', value: `${points}P`, emoji: '⚡', color: '#FFA502' },
-                { label: '총 제보 횟수', value: `${reportCount}회`, emoji: '📝', color: '#2ED573' },
+                { label: '총 제보', value: `${reportCount}회`, emoji: '📝', color: '#2ED573' },
                 { label: '오늘 제보', value: `${todayReports}/${grade.dailyReports}회`, emoji: '📍', color: '#1E90FF' },
               ].map(stat => (
                 <div key={stat.label} style={{
@@ -125,21 +130,25 @@ function UserProfile({ user, onClose }) {
 
             {/* 현재 등급 혜택 */}
             <div style={{
-              padding: '14px', background: `${grade.color}10`,
-              borderRadius: '12px', marginBottom: '16px',
+              padding: '14px', marginBottom: '16px',
+              background: `${grade.color}10`,
+              borderRadius: '12px',
               border: `1px solid ${grade.color}33`,
             }}>
               <div style={{ fontSize: '12px', fontWeight: '700', color: grade.color, marginBottom: '8px' }}>
                 {grade.emoji} {grade.label} 등급 혜택
               </div>
-              {GRADE_BENEFITS[gradeKey].map(benefit => (
-                <div key={benefit} style={{ fontSize: '12px', color: '#555', padding: '3px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {GRADE_BENEFITS[grade.key].map(benefit => (
+                <div key={benefit} style={{
+                  fontSize: '12px', color: '#555',
+                  padding: '3px 0', display: 'flex', alignItems: 'center', gap: '6px'
+                }}>
                   <span style={{ color: grade.color }}>✓</span> {benefit}
                 </div>
               ))}
             </div>
 
-            {/* 다음 등급 */}
+            {/* 다음 등급까지 */}
             {nextGrade ? (
               <div style={{
                 padding: '14px', background: '#f8f8f8',
@@ -159,10 +168,9 @@ function UserProfile({ user, onClose }) {
                     transition: 'width 0.5s ease',
                   }} />
                 </div>
-                {/* 다음 등급 혜택 미리보기 */}
-                <div style={{ marginTop: '10px', fontSize: '11px', color: '#999' }}>
+                <div style={{ marginTop: '8px', fontSize: '11px', color: '#999' }}>
                   {nextGrade.label} 달성 시 →
-                  {nextGrade.label === '실버' ? ' 하루 제보 5회, 실버 뱃지' : ' 하루 제보 10회, AI 무제한, 골드 뱃지'}
+                  {nextGrade.key === 'silver' ? ' 하루 제보 5회, 실버 뱃지' : ' 하루 제보 10회, AI 무제한, 골드 뱃지'}
                 </div>
               </div>
             ) : (
@@ -175,6 +183,35 @@ function UserProfile({ user, onClose }) {
               </div>
             )}
 
+            {/* 전체 등급 로드맵 */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#333', marginBottom: '10px' }}>
+                🗺️ 전체 등급 로드맵
+              </div>
+              {GRADE_ROADMAP.map(g => (
+                <div key={g.key} style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '10px 12px', marginBottom: '6px',
+                  borderRadius: '10px',
+                  background: grade.key === g.key ? `${g.color}15` : '#f8f8f8',
+                  border: grade.key === g.key ? `1px solid ${g.color}44` : '1px solid #eee',
+                  opacity: points < g.minPoints ? 0.5 : 1,
+                }}>
+                  <span style={{ fontSize: '20px' }}>{g.emoji}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: g.color }}>
+                      {g.label} {grade.key === g.key && '← 현재'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>{g.benefits}</div>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#999', whiteSpace: 'nowrap' }}>
+                    {g.minPoints}P~
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 포인트 안내 */}
             <div style={{ fontSize: '11px', color: '#999', lineHeight: 1.8, textAlign: 'center' }}>
               💡 재고 제보 +10P · 투표 +2P<br />
               100P = 실버 · 300P = 골드
