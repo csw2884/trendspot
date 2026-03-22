@@ -618,12 +618,12 @@ function App() {
       {showReportForm && selectedStore && (
         <div className="modal-overlay" onClick={() => setShowReportForm(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px' }}>
-            <div className="modal-header">
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '480px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header" style={{ flexShrink: 0 }}>
               <h3>📝 재고 제보</h3>
               <button className="close-btn" onClick={() => setShowReportForm(false)}>✕</button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body" style={{ overflowY: 'auto', flex: 1 }}>
               <div className="store-info-box">
                 <h4>{selectedStore.name}</h4>
                 <p>{selectedStore.address}</p>
@@ -767,16 +767,6 @@ function App() {
                   <input className="input" type="text" value={customStoreName}
                     onChange={e => setCustomStoreName(e.target.value)}
                     placeholder="예: 홍대 팝마트" required />
-                </div>
-                <div className="form-group">
-                  <label className="input-label">카테고리 *</label>
-                  <select className="input" value={storeData.category} onChange={e => setStoreData(prev => ({ ...prev, category: e.target.value }))}>
-                    <option value="popmart">🧸 팝마트</option>
-                    <option value="buttertteok">🧈 버터떡</option>
-                    <option value="twochoco">🍫 두쫀쿠</option>
-                    <option value="fashion">👕 한정판 패션</option>
-                    <option value="popup">🏪 팝업스토어</option>
-                  </select>
                 </div>
                 <div className="form-group">
                   <label className="input-label">가게 사진 (선택)</label>
