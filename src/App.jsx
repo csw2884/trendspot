@@ -427,7 +427,7 @@ return (
 
       <header className="header">
         <div className="header-content">
-          <h1 className="logo">📍 TrendSpot</h1>
+          <h1 className="logo">🏷️ 있템</h1>
           <div className="header-right">
             {user ? (
               <>
