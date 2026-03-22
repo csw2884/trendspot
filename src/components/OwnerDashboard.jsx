@@ -19,6 +19,19 @@ function OwnerDashboard({ user, onClose }) {
 
   useEffect(() => {
     loadMyStores();
+
+    // 실시간 승인 상태 구독
+    const sub = supabase.channel('owner_stores_channel')
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'stores',
+        filter: `owner_id=eq.${user.id}`
+      }, (payload) => {
+        setMyStores(prev => prev.map(s => s.id === payload.new.id ? payload.new : s));
+        setSelectedStore(prev => prev?.id === payload.new.id ? payload.new : prev);
+      })
+      .subscribe();
+
+    return () => sub.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -29,7 +42,8 @@ function OwnerDashboard({ user, onClose }) {
     const { data } = await supabase
       .from('stores')
       .select('*')
-      .eq('owner_id', user.id);
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: false });
     setMyStores(data || []);
     if (data?.length > 0) setSelectedStore(data[0]);
     setLoading(false);
@@ -41,8 +55,6 @@ function OwnerDashboard({ user, onClose }) {
       .select('*')
       .eq('store_id', storeId)
       .order('reported_at', { ascending: false });
-    
-    // 아이템별 최신 재고만
     const latest = {};
     (data || []).forEach(s => {
       if (!latest[s.item_name]) latest[s.item_name] = s;
@@ -51,7 +63,8 @@ function OwnerDashboard({ user, onClose }) {
   };
 
   const uploadImage = async (file) => {
-    const path = `stocks/${Date.now()}_${file.name}`;
+    const ext = file.name.split('.').pop();
+    const path = `stocks/${Date.now()}.${ext}`;
     await supabase.storage.from('store-images').upload(path, file, { upsert: true });
     const { data: { publicUrl } } = supabase.storage.from('store-images').getPublicUrl(path);
     return publicUrl;
@@ -64,7 +77,6 @@ function OwnerDashboard({ user, onClose }) {
     try {
       let imageUrl = null;
       if (stockImage) imageUrl = await uploadImage(stockImage);
-      
       await supabase.from('stocks').insert({
         store_id: selectedStore.id,
         item_name: stockForm.item_name.trim(),
@@ -74,7 +86,6 @@ function OwnerDashboard({ user, onClose }) {
         reported_at: new Date().toISOString(),
         image_url: imageUrl
       });
-      
       setShowAddStock(false);
       setStockForm({ item_name: '', status: '여유', quantity: '' });
       setStockImage(null);
@@ -103,17 +114,19 @@ function OwnerDashboard({ user, onClose }) {
   const timeAgo = (dateStr) => {
     const diff = (Date.now() - new Date(dateStr)) / 1000 / 60;
     if (diff < 60) return `${Math.round(diff)}분 전`;
-    if (diff < 1440) return `${Math.round(diff/60)}시간 전`;
-    return `${Math.round(diff/1440)}일 전`;
+    if (diff < 1440) return `${Math.round(diff / 60)}시간 전`;
+    return `${Math.round(diff / 1440)}일 전`;
   };
 
   if (loading) return (
-    <div className="owner-dashboard">
-      <div className="dashboard-header">
-        <h2>🏪 사장님 대시보드</h2>
-        <button onClick={onClose}>✕</button>
+    <div className="owner-overlay" onClick={onClose}>
+      <div className="owner-dashboard" onClick={e => e.stopPropagation()}>
+        <div className="dashboard-header">
+          <h2>🏪 사장님 대시보드</h2>
+          <button onClick={onClose}>✕</button>
+        </div>
+        <div className="dashboard-loading">로딩 중...</div>
       </div>
-      <div className="dashboard-loading">로딩 중...</div>
     </div>
   );
 
@@ -128,21 +141,19 @@ function OwnerDashboard({ user, onClose }) {
         {myStores.length === 0 ? (
           <div className="no-stores">
             <p>등록된 가게가 없어요</p>
-            <p style={{fontSize: '13px', color: '#999'}}>가게 등록 신청 후 승인을 기다려주세요</p>
+            <p style={{ fontSize: '13px', color: '#999' }}>가게 등록 신청 후 승인을 기다려주세요</p>
           </div>
         ) : (
           <>
-            {/* 가게 선택 */}
             {myStores.length > 1 && (
               <div className="store-selector">
                 {myStores.map(store => (
-                  <button
-                    key={store.id}
+                  <button key={store.id}
                     className={`store-select-btn ${selectedStore?.id === store.id ? 'active' : ''}`}
-                    onClick={() => setSelectedStore(store)}
-                  >
+                    onClick={() => setSelectedStore(store)}>
                     {store.name}
                     {store.status === 'pending' && <span className="pending-badge">승인 대기</span>}
+                    {store.status === 'approved' && <span style={{ fontSize: '10px', color: '#2ED573', marginLeft: '4px' }}>✅</span>}
                   </button>
                 ))}
               </div>
@@ -155,10 +166,17 @@ function OwnerDashboard({ user, onClose }) {
                     <h3>{selectedStore.name}</h3>
                     <p>{selectedStore.address}</p>
                   </div>
-                  <span className={`status-badge ${selectedStore.status}`}>
-                    {selectedStore.status === 'approved' ? '✅ 승인됨' :
-                     selectedStore.status === 'pending' ? '⏳ 대기중' : '❌ 거절됨'}
-                  </span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span className={`status-badge ${selectedStore.status}`}>
+                      {selectedStore.status === 'approved' ? '✅ 승인됨' :
+                        selectedStore.status === 'pending' ? '⏳ 대기중' : '❌ 거절됨'}
+                    </span>
+                    {selectedStore.status === 'pending' && (
+                      <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                        관리자 승인 대기 중이에요
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {selectedStore.status === 'approved' ? (
@@ -169,7 +187,6 @@ function OwnerDashboard({ user, onClose }) {
                         + 재고 추가
                       </button>
                     </div>
-
                     {stocks.length === 0 ? (
                       <div className="no-stocks">
                         <p>등록된 재고가 없어요</p>
@@ -191,12 +208,14 @@ function OwnerDashboard({ user, onClose }) {
                             </div>
                             <div className="stock-card-actions">
                               {Object.keys(STOCK_STATUS).map(s => (
-                                <button
-                                  key={s}
+                                <button key={s}
                                   className={`status-btn ${stock.status === s ? 'active' : ''}`}
-                                  style={{ borderColor: STOCK_STATUS[s].color, color: stock.status === s ? 'white' : STOCK_STATUS[s].color, backgroundColor: stock.status === s ? STOCK_STATUS[s].color : 'white' }}
-                                  onClick={() => handleUpdateStatus(stock, s)}
-                                >
+                                  style={{
+                                    borderColor: STOCK_STATUS[s].color,
+                                    color: stock.status === s ? 'white' : STOCK_STATUS[s].color,
+                                    backgroundColor: stock.status === s ? STOCK_STATUS[s].color : 'white'
+                                  }}
+                                  onClick={() => handleUpdateStatus(stock, s)}>
                                   {s}
                                 </button>
                               ))}
@@ -206,9 +225,17 @@ function OwnerDashboard({ user, onClose }) {
                       </div>
                     )}
                   </>
+                ) : selectedStore.status === 'rejected' ? (
+                  <div className="pending-message" style={{ color: '#FF4757' }}>
+                    <p>❌ 가게 등록이 거절됐어요</p>
+                    <p style={{ fontSize: '12px', color: '#999' }}>다시 등록 신청해주세요</p>
+                  </div>
                 ) : (
                   <div className="pending-message">
                     <p>⏳ 관리자 승인 후 재고를 관리할 수 있어요</p>
+                    <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                      승인되면 자동으로 업데이트돼요 🔔
+                    </p>
                   </div>
                 )}
               </>
@@ -216,7 +243,6 @@ function OwnerDashboard({ user, onClose }) {
           </>
         )}
 
-        {/* 재고 추가 폼 */}
         {showAddStock && (
           <div className="modal-overlay" onClick={() => setShowAddStock(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
