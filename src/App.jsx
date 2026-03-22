@@ -34,7 +34,7 @@ function App() {
   const [userLocation, setUserLocation] = useState(null);
   const [showReportForm, setShowReportForm] = useState(false);
   const [showAddStoreForm, setShowAddStoreForm] = useState(false);
-  const [reportData, setReportData] = useState({ itemName: '', status: '여유', quantity: '' });
+  const [reportData, setReportData] = useState({ itemName: '', status: '여유', quantity: '', showOtherItems: false });
   const [storeData, setStoreData] = useState({ name: '', category: 'popmart', address: '', lat: null, lng: null });
   const [addressLoading, setAddressLoading] = useState(false);
   const [loadingCongestion, setLoadingCongestion] = useState(false);
@@ -48,15 +48,9 @@ function App() {
   const [showOwnerDashboard, setShowOwnerDashboard] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(
-  !localStorage.getItem('trendspot_onboarded')
-);
-const [showUserProfile, setShowUserProfile] = useState(false);
-const [darkMode, setDarkMode] = useState(
-  localStorage.getItem('trendspot_dark') === 'true'
-);
-
-  // 가게 등록 - 카카오 장소 검색
+  const [showOnboarding, setShowOnboarding] = useState(!localStorage.getItem('trendspot_onboarded'));
+  const [showUserProfile, setShowUserProfile] = useState(false);
+  const [darkMode, setDarkMode] = useState(localStorage.getItem('trendspot_dark') === 'true');
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
   const [storeSearchResults, setStoreSearchResults] = useState([]);
   const [selectedKakaoPlace, setSelectedKakaoPlace] = useState(null);
@@ -66,6 +60,7 @@ const [darkMode, setDarkMode] = useState(
   const markersRef = useRef([]);
   const mapRef = useRef(null);
 
+  // 초기화
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) { setUser(session.user); checkAdmin(session.user.email); }
@@ -80,11 +75,12 @@ const [darkMode, setDarkMode] = useState(
     return () => subscription.unsubscribe();
   }, []);
 
+  // 카카오맵 로드
   useEffect(() => {
     if (window.kakao?.maps) { setKakaoLoaded(true); return; }
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_KEY}&autoload=false&libraries=services`;
-    script.onload = () => { window.kakao.maps.load(() => { setKakaoLoaded(true); }); };
+    script.onload = () => { window.kakao.maps.load(() => setKakaoLoaded(true)); };
     document.head.appendChild(script);
   }, []);
 
@@ -97,14 +93,16 @@ const [darkMode, setDarkMode] = useState(
     updateMarkers();
   }, [selectedTrend, stores, stocks]);
 
-useEffect(() => {
-  document.body.classList.toggle('dark', darkMode);
-  localStorage.setItem('trendspot_dark', darkMode);
-}, [darkMode]);
+  useEffect(() => {
+    document.body.classList.toggle('dark', darkMode);
+    localStorage.setItem('trendspot_dark', darkMode);
+  }, [darkMode]);
 
-useEffect(() => {
-  calculateTrends();
-}, [stocks]);
+  useEffect(() => {
+    calculateTrends();
+  }, [stocks]);
+
+  // 실시간 재고 변동 구독
   useEffect(() => {
     const sub = supabase.channel('stocks_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stocks' }, () => loadStoresAndStocks())
@@ -112,6 +110,7 @@ useEffect(() => {
     return () => sub.unsubscribe();
   }, []);
 
+  // 트렌드 계산
   const calculateTrends = () => {
     const now = Date.now();
     const scoreMap = {};
@@ -119,7 +118,6 @@ useEffect(() => {
       const itemKey = stock.item_name?.trim().toLowerCase();
       if (!itemKey) return;
       const hoursAgo = (now - new Date(stock.reported_at)) / (1000 * 60 * 60);
-      //if (hoursAgo > 168) return;
       if (!scoreMap[itemKey]) {
         scoreMap[itemKey] = { name: stock.item_name, score: 0, soldOutCount: 0, storeCount: new Set() };
       }
@@ -136,6 +134,7 @@ useEffect(() => {
     setTrends(sorted);
   };
 
+  // 데이터 로드
   const loadStoresAndStocks = async () => {
     try {
       setLoadingCongestion(true);
@@ -172,6 +171,17 @@ useEffect(() => {
     );
   };
 
+  // 두 좌표 간 거리 계산 (미터)
+  const getDistance = (lat1, lng1, lat2, lng2) => {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  // 지도 초기화
   const initializeMap = () => {
     if (!mapContainerRef.current || !window.kakao?.maps) return;
     const center = new window.kakao.maps.LatLng(37.5665, 126.9780);
@@ -303,61 +313,102 @@ useEffect(() => {
     }));
   };
 
-const uploadImage = async (file, path) => {
-  // 파일명 영문/숫자만 남기기
-  const ext = file.name.split('.').pop();
-  const safePath = `stores/${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from('store-images').upload(safePath, file, { upsert: true });
-  if (error) throw error;
-  const { data: { publicUrl } } = supabase.storage.from('store-images').getPublicUrl(safePath);
-  return publicUrl;
-};
-
-const handleAddStore = async (e) => {
-  e.preventDefault();
-  if (!user) { setShowAuthModal(true); return; }
-  if (!selectedKakaoPlace) { alert('가게를 검색해서 선택해주세요!'); return; }
-  setAddressLoading(true);
-  try {
-    let imageUrl = null;
-    if (storeImage) {
-      try {
-        imageUrl = await uploadImage(storeImage);
-      } catch (imgError) {
-        console.error('이미지 업로드 실패:', imgError);
-        // 이미지 실패해도 가게 등록은 계속 진행
-      }
-    }
-    const { error } = await supabase.from('stores').insert({
-      name: storeData.name.trim(),
-      category: storeData.category,
-      address: storeData.address.trim(),
-      lat: storeData.lat,
-      lng: storeData.lng,
-      status: 'pending',
-      owner_id: user.id,
-      owner_email: user.email,
-      image_url: imageUrl
-    });
+  const uploadImage = async (file) => {
+    const ext = file.name.split('.').pop();
+    const safePath = `stores/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('store-images').upload(safePath, file, { upsert: true });
     if (error) throw error;
-    alert('가게 등록 신청 완료! 관리자 승인 후 표시됩니다 😊');
-    setShowAddStoreForm(false);
-    setStoreData({ name: '', category: 'popmart', address: '', lat: null, lng: null });
-    setStoreSearchQuery('');
-    setSelectedKakaoPlace(null);
-    setStoreImage(null);
-  } catch (error) {
-    alert('가게 등록에 실패했습니다: ' + error.message);
-    console.error(error);
-  } finally {
-    setAddressLoading(false);
-  }
-};
+    const { data: { publicUrl } } = supabase.storage.from('store-images').getPublicUrl(safePath);
+    return publicUrl;
+  };
 
+  const handleAddStore = async (e) => {
+    e.preventDefault();
+    if (!user) { setShowAuthModal(true); return; }
+    if (!selectedKakaoPlace) { alert('가게를 검색해서 선택해주세요!'); return; }
+    setAddressLoading(true);
+    try {
+      let imageUrl = null;
+      if (storeImage) {
+        try { imageUrl = await uploadImage(storeImage); }
+        catch (imgError) { console.error('이미지 업로드 실패:', imgError); }
+      }
+      const { error } = await supabase.from('stores').insert({
+        name: storeData.name.trim(),
+        category: storeData.category,
+        address: storeData.address.trim(),
+        lat: storeData.lat,
+        lng: storeData.lng,
+        status: 'pending',
+        owner_id: user.id,
+        owner_email: user.email,
+        image_url: imageUrl
+      });
+      if (error) throw error;
+      alert('가게 등록 신청 완료! 관리자 승인 후 표시됩니다 😊');
+      setShowAddStoreForm(false);
+      setStoreData({ name: '', category: 'popmart', address: '', lat: null, lng: null });
+      setStoreSearchQuery('');
+      setSelectedKakaoPlace(null);
+      setStoreImage(null);
+    } catch (error) {
+      alert('가게 등록에 실패했습니다: ' + error.message);
+    } finally {
+      setAddressLoading(false);
+    }
+  };
+
+  // 포인트 적립
+  const addPoints = async (userId, points) => {
+    const { data } = await supabase.from('user_points').select('*').eq('user_id', userId).single();
+    if (data) {
+      await supabase.from('user_points').update({
+        points: data.points + points,
+        total_points: data.total_points + points,
+        updated_at: new Date().toISOString()
+      }).eq('user_id', userId);
+      setSpotPoints(data.points + points);
+    } else {
+      await supabase.from('user_points').insert({
+        user_id: userId, points, total_points: points,
+        updated_at: new Date().toISOString()
+      });
+      setSpotPoints(points);
+    }
+  };
+
+  // 재고 제보
   const handleSubmitReport = async (e) => {
     e.preventDefault();
     if (!user) { setShowAuthModal(true); return; }
-    if (!selectedStore || !reportData.itemName.trim()) { alert('아이템명을 입력해주세요.'); return; }
+    if (!selectedStore || !reportData.itemName.trim()) { alert('아이템을 선택해주세요.'); return; }
+
+    // 1. 위치 확인 (100m 이내)
+    if (!userLocation) { alert('위치 정보를 확인 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+    const distance = getDistance(
+      userLocation.lat, userLocation.lng,
+      selectedStore.lat, selectedStore.lng
+    );
+    if (distance > 100) {
+      alert(`📍 가게에서 ${Math.round(distance)}m 떨어져 있어요.\n직접 방문 후 100m 이내에서만 제보할 수 있어요!`);
+      return;
+    }
+
+    // 2. 오늘 제보 횟수 확인 (하루 3회 제한)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data: todayLogs } = await supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('action', 'stock_report')
+      .gte('created_at', today.toISOString());
+
+    if (todayLogs && todayLogs.length >= 3) {
+      alert('오늘 제보 횟수(3회)를 모두 사용했어요.\n내일 다시 제보할 수 있어요! 😊');
+      return;
+    }
+
     try {
       await supabase.from('stocks').insert({
         store_id: selectedStore.id,
@@ -370,12 +421,16 @@ const handleAddStore = async (e) => {
       await supabase.from('activity_logs').insert({
         user_id: user.id, action: 'stock_report', target_id: selectedStore.id
       });
-      alert('재고 제보 완료! +10 스팟 포인트 ⭐');
-      setSpotPoints(prev => prev + 10);
+      await addPoints(user.id, 10);
+      const remaining = 2 - (todayLogs?.length || 0);
+      alert(`재고 제보 완료! +10 스팟 포인트 ⭐\n오늘 남은 제보 횟수: ${remaining}회`);
       setShowReportForm(false);
-      setReportData({ itemName: '', status: '여유', quantity: '' });
+      setReportData({ itemName: '', status: '여유', quantity: '', showOtherItems: false });
       loadStoresAndStocks();
-    } catch (e) { alert('제보 실패했습니다.'); }
+    } catch (e) {
+      console.error(e);
+      alert('제보 실패했습니다.');
+    }
   };
 
   const handleLogout = async () => {
@@ -389,7 +444,7 @@ const handleAddStore = async (e) => {
       <div className="app">
         <header className="header">
           <div className="header-content">
-            <h1 className="logo">있템</h1>
+            <h1 className="logo">🏷️ 있템</h1>
             <button className="btn btn-ghost btn-pill" onClick={() => setShowAdminPage(false)}>← 돌아가기</button>
           </div>
         </header>
@@ -398,12 +453,11 @@ const handleAddStore = async (e) => {
     );
   }
 
-return (
-  <div className="app">
-    {showOnboarding && (
-      <Onboarding onComplete={() => setShowOnboarding(false)} />
-    )}
-    {showAuthModal && (
+  return (
+    <div className="app">
+      {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
+
+      {showAuthModal && (
         <div className="modal-overlay" onClick={() => setShowAuthModal(false)}>
           <div onClick={e => e.stopPropagation()}>
             <Auth onLogin={(u) => { setUser(u); setShowAuthModal(false); }} />
@@ -421,9 +475,17 @@ return (
         />
       )}
 
-{showUserProfile && (
-  <UserProfile user={user} onClose={() => setShowUserProfile(false)} />
-)}
+      {showOwnerDashboard && user && (
+        <OwnerDashboard user={user} onClose={() => setShowOwnerDashboard(false)} />
+      )}
+
+      {showUserProfile && user && (
+        <UserProfile user={user} onClose={() => setShowUserProfile(false)} />
+      )}
+
+      {showPricing && (
+        <PricingModal onClose={() => setShowPricing(false)} />
+      )}
 
       <header className="header">
         <div className="header-content">
@@ -431,36 +493,24 @@ return (
           <div className="header-right">
             {user ? (
               <>
-                <span className="user-nickname" onClick={() => setShowUserProfile(true)} style={{cursor:'pointer'}}>
+                <span className="user-nickname" onClick={() => setShowUserProfile(true)} style={{ cursor: 'pointer' }}>
                   {user?.user_metadata?.nickname || user?.email?.split('@')[0]}
                   {spotPoints > 0 && <span className="point-badge">⚡ {spotPoints}P</span>}
                 </span>
                 {isAdmin && <button className="btn btn-icon admin-btn" onClick={() => setShowAdminPage(true)}>🔧</button>}
                 <button className="btn btn-icon owner-btn" onClick={() => setShowOwnerDashboard(true)}>🏪</button>
-                <button
-  className="btn btn-secondary btn-pill"
-  style={{fontSize: '12px', padding: '6px 12px'}}
-  onClick={() => setShowAddStoreForm(true)}
->
-  + 가게 등록
-</button> 
-<button
-  className="btn btn-ghost btn-pill"
-  onClick={() => setDarkMode(d => !d)}
->
-  {darkMode ? '☀️' : '🌙'}
-</button>
+                <button className="btn btn-secondary btn-pill" style={{ fontSize: '12px', padding: '6px 12px' }}
+                  onClick={() => setShowAddStoreForm(true)}>+ 가게 등록</button>
+                <button className="btn btn-ghost btn-pill" onClick={() => setShowPricing(true)}>💎 요금제</button>
+                <button className="btn btn-ghost btn-pill" onClick={() => setDarkMode(d => !d)}>
+                  {darkMode ? '☀️' : '🌙'}
+                </button>
                 <button className="btn btn-ghost btn-pill" onClick={handleLogout}>로그아웃</button>
               </>
             ) : (
               <>
-                <button
-                  className="btn btn-secondary btn-pill"
-                  style={{fontSize: '12px', padding: '6px 12px'}}
-                  onClick={() => setShowAuthModal(true)}
-                >
-                  + 가게 등록
-                </button>
+                <button className="btn btn-secondary btn-pill" style={{ fontSize: '12px', padding: '6px 12px' }}
+                  onClick={() => setShowAuthModal(true)}>+ 가게 등록</button>
                 <button className="btn btn-primary btn-pill" onClick={() => setShowAuthModal(true)}>로그인</button>
               </>
             )}
@@ -469,16 +519,12 @@ return (
 
         <div className="search-container">
           <div className="search-bar">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{flexShrink: 0, color: 'var(--ts-text-muted)'}}>
-              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: 'var(--ts-text-muted)' }}>
+              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            <input
-              type="text"
-              placeholder="가게명, 메뉴, 아이템 검색..."
-              value={searchQuery}
-              onChange={e => handleSearch(e.target.value)}
-            />
+            <input type="text" placeholder="가게명, 메뉴, 아이템 검색..."
+              value={searchQuery} onChange={e => handleSearch(e.target.value)} />
             {loadingCongestion && <div className="spinner spinner-sm" />}
           </div>
           {showSearchResults && searchResults.length > 0 && (
@@ -495,24 +541,24 @@ return (
             </div>
           )}
         </div>
-        <div className="header-subtitle" style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+        <div className="header-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span>🔥 있어? 있템! 실시간 트렌드 재고 공유 플랫폼</span>
           <OnlineCounter />
         </div>
       </header>
-          <TrendAI trends={trends} stocks={stocks} />
-          <StatsDashboard stores={stores} stocks={stocks} trends={trends} />
+
+      <TrendAI trends={trends} stocks={stocks} user={user} />
+      <StatsDashboard stores={stores} stocks={stocks} trends={trends} />
+
       <div className="trend-bar">
         <span className="trend-bar-title">🔥 TOP</span>
         {trends.length === 0 ? (
-          [1,2,3,4,5].map(i => <div key={i} className="skeleton skeleton-trend-chip" />)
+          [1, 2, 3, 4, 5].map(i => <div key={i} className="skeleton skeleton-trend-chip" />)
         ) : (
           trends.map((item, index) => (
-            <button
-              key={item.name}
+            <button key={item.name}
               className={`trend-chip ${selectedTrend === item.name ? 'active' : ''}`}
-              onClick={() => handleSelectTrend(item.name)}
-            >
+              onClick={() => handleSelectTrend(item.name)}>
               <span className="rank-num">{index + 1}</span>
               <span>{item.name}</span>
             </button>
@@ -523,7 +569,8 @@ return (
       {selectedTrend && (
         <div className="trend-filter-bar">
           <span>🔍 <strong>{selectedTrend}</strong> 재고 있는 매장</span>
-          <button className="btn btn-ghost btn-pill" style={{fontSize: '12px', padding: '4px 12px'}} onClick={() => setSelectedTrend(null)}>✕ 초기화</button>
+          <button className="btn btn-ghost btn-pill" style={{ fontSize: '12px', padding: '4px 12px' }}
+            onClick={() => setSelectedTrend(null)}>✕ 초기화</button>
         </div>
       )}
 
@@ -561,33 +608,95 @@ return (
                 <h4>{selectedStore.name}</h4>
                 <p>{selectedStore.address}</p>
               </div>
+
+              {/* 위치/제보 안내 */}
+              <div style={{
+                padding: '8px 12px', marginBottom: '12px',
+                background: '#FFF9E6', borderRadius: '8px',
+                fontSize: '12px', color: '#856404'
+              }}>
+                📍 가게 100m 이내에서만 제보 가능 · 하루 3회 제한
+              </div>
+
               <form onSubmit={handleSubmitReport} className="report-form">
-<div className="form-group">
-  <label className="input-label">아이템명 *</label>
-  {/* 이 가게에 기존 등록된 아이템 */}
-  {stocks.filter(s => s.store_id === selectedStore?.id).length > 0 && (
-    <div style={{ marginBottom: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-      {[...new Set(stocks.filter(s => s.store_id === selectedStore?.id).map(s => s.item_name))].map(name => (
-        <button
-          key={name}
-          type="button"
-          onClick={() => setReportData(prev => ({ ...prev, itemName: name }))}
-          style={{
-            fontSize: '12px', padding: '4px 10px',
-            background: reportData.itemName === name ? 'var(--ts-primary)' : '#f0f0f0',
-            color: reportData.itemName === name ? 'white' : '#555',
-            border: 'none', borderRadius: '20px', cursor: 'pointer'
-          }}
-        >
-          {name}
-        </button>
-      ))}
-    </div>
-  )}
-  <input className="input" type="text" value={reportData.itemName}
-    onChange={e => setReportData(prev => ({ ...prev, itemName: e.target.value }))}
-    placeholder="새 아이템이면 직접 입력하세요" required />
-</div>
+                {/* 아이템 선택 */}
+                <div className="form-group">
+                  <label className="input-label">아이템명 *</label>
+                  {(() => {
+                    const storeItems = [...new Set(stocks.filter(s => s.store_id === selectedStore?.id).map(s => s.item_name))];
+                    const selectedItems = selectedTrend
+                      ? storeItems.filter(name => name.toLowerCase().includes(selectedTrend.toLowerCase()))
+                      : storeItems;
+                    const otherItems = storeItems.filter(name => !selectedItems.includes(name));
+                    return (
+                      <>
+                        {selectedItems.length > 0 && (
+                          <div style={{ marginBottom: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {selectedItems.map(name => (
+                              <button key={name} type="button"
+                                onClick={() => setReportData(prev => ({ ...prev, itemName: name }))}
+                                style={{
+                                  fontSize: '12px', padding: '4px 10px',
+                                  background: reportData.itemName === name ? 'var(--ts-primary)' : '#f0f0f0',
+                                  color: reportData.itemName === name ? 'white' : '#555',
+                                  border: 'none', borderRadius: '20px', cursor: 'pointer'
+                                }}>{name}</button>
+                            ))}
+                            {otherItems.length > 0 && (
+                              <button type="button"
+                                onClick={() => setReportData(prev => ({ ...prev, showOtherItems: !prev.showOtherItems }))}
+                                style={{
+                                  fontSize: '12px', padding: '4px 10px',
+                                  background: 'none', color: '#999',
+                                  border: '1px dashed #ddd', borderRadius: '20px', cursor: 'pointer'
+                                }}>+ 다른 재고 {otherItems.length}개 보기</button>
+                            )}
+                          </div>
+                        )}
+                        {reportData.showOtherItems && (
+                          <div style={{ marginBottom: '8px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {otherItems.map(name => (
+                              <button key={name} type="button"
+                                onClick={() => setReportData(prev => ({ ...prev, itemName: name }))}
+                                style={{
+                                  fontSize: '12px', padding: '4px 10px',
+                                  background: reportData.itemName === name ? 'var(--ts-primary)' : '#f5f5f5',
+                                  color: reportData.itemName === name ? 'white' : '#888',
+                                  border: 'none', borderRadius: '20px', cursor: 'pointer'
+                                }}>{name}</button>
+                            ))}
+                          </div>
+                        )}
+                        {/* 사장님은 새 아이템 직접 입력 가능 */}
+                        {selectedStore?.owner_id === user?.id ? (
+                          <input className="input" type="text" value={reportData.itemName}
+                            onChange={e => setReportData(prev => ({ ...prev, itemName: e.target.value }))}
+                            placeholder="새 아이템 직접 입력 (사장님 전용)" required />
+                        ) : (
+                          <>
+                            {reportData.itemName ? (
+                              <div style={{
+                                padding: '8px 12px', background: '#f8f8f8',
+                                borderRadius: '8px', fontSize: '13px', color: '#333'
+                              }}>
+                                ✅ 선택됨: <strong>{reportData.itemName}</strong>
+                                <button type="button"
+                                  onClick={() => setReportData(prev => ({ ...prev, itemName: '' }))}
+                                  style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}>✕</button>
+                              </div>
+                            ) : (
+                              <p style={{ fontSize: '12px', color: '#999', margin: '4px 0 0' }}>
+                                위 목록에서 아이템을 선택해주세요
+                              </p>
+                            )}
+                            <input type="hidden" value={reportData.itemName} required />
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
                 <div className="form-group">
                   <label className="input-label">재고 상태 *</label>
                   <select className="input" value={reportData.status}
@@ -597,16 +706,18 @@ return (
                     <option value="품절">🔴 품절</option>
                   </select>
                 </div>
+
                 <div className="form-group">
                   <label className="input-label">수량 (선택)</label>
                   <input className="input" type="number" min="0" value={reportData.quantity}
                     onChange={e => setReportData(prev => ({ ...prev, quantity: e.target.value }))}
                     placeholder="예: 5" />
                 </div>
+
                 <div className="form-actions">
                   <button type="button" className="btn btn-ghost" onClick={() => setShowReportForm(false)}>취소</button>
                   <button type="submit" className="btn btn-primary">
-                    제보하기 <span className="badge badge-accent" style={{marginLeft: '4px'}}>+10P</span>
+                    제보하기 <span className="badge badge-accent" style={{ marginLeft: '4px' }}>+10P</span>
                   </button>
                 </div>
               </form>
@@ -615,7 +726,7 @@ return (
         </div>
       )}
 
-      {/* 가게 등록 폼 - 카카오맵 장소 검색 */}
+      {/* 가게 등록 폼 */}
       {showAddStoreForm && (
         <div className="modal-overlay" onClick={() => setShowAddStoreForm(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -624,29 +735,23 @@ return (
               <button className="close-btn" onClick={() => setShowAddStoreForm(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <p style={{fontSize: '13px', color: 'var(--ts-text-secondary)', marginBottom: '16px'}}>
+              <p style={{ fontSize: '13px', color: 'var(--ts-text-secondary)', marginBottom: '16px' }}>
                 관리자 승인 후 지도에 표시됩니다 😊
               </p>
               <form onSubmit={handleAddStore} className="report-form">
-
-                {/* 카카오 장소 검색 */}
                 <div className="form-group">
                   <label className="input-label">가게 검색 *</label>
-                  <div style={{position: 'relative'}}>
-                    <input
-                      className="input"
-                      type="text"
-                      value={storeSearchQuery}
+                  <div style={{ position: 'relative' }}>
+                    <input className="input" type="text" value={storeSearchQuery}
                       onChange={e => searchKakaoPlaces(e.target.value)}
-                      placeholder="가게명으로 검색 (예: 홍대 팝마트)"
-                    />
+                      placeholder="가게명으로 검색 (예: 홍대 팝마트)" />
                     {storeSearchLoading && (
-                      <div style={{position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)'}}>
+                      <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}>
                         <div className="spinner spinner-sm" />
                       </div>
                     )}
                     {storeSearchResults.length > 0 && (
-                      <div className="search-results" style={{position: 'absolute', top: '100%', zIndex: 100}}>
+                      <div className="search-results" style={{ position: 'absolute', top: '100%', zIndex: 100 }}>
                         {storeSearchResults.map((place, i) => (
                           <div key={i} className="search-result-item" onClick={() => handleSelectKakaoPlace(place)}>
                             <span className="search-emoji">🏪</span>
@@ -664,18 +769,16 @@ return (
                       marginTop: '8px', padding: '10px 12px',
                       background: 'rgba(46,213,115,0.08)',
                       border: '1px solid rgba(46,213,115,0.3)',
-                      borderRadius: 'var(--ts-radius-md)',
-                      fontSize: '13px'
+                      borderRadius: 'var(--ts-radius-md)', fontSize: '13px'
                     }}>
-                      ✅ <strong>{selectedKakaoPlace.place_name}</strong><br/>
-                      <span style={{color: 'var(--ts-text-muted)', fontSize: '12px'}}>
+                      ✅ <strong>{selectedKakaoPlace.place_name}</strong><br />
+                      <span style={{ color: 'var(--ts-text-muted)', fontSize: '12px' }}>
                         {selectedKakaoPlace.road_address_name || selectedKakaoPlace.address_name}
                       </span>
                     </div>
                   )}
                 </div>
 
-                {/* 카테고리 */}
                 <div className="form-group">
                   <label className="input-label">카테고리 *</label>
                   <select className="input" value={storeData.category}
@@ -688,7 +791,6 @@ return (
                   </select>
                 </div>
 
-                {/* 가게 사진 */}
                 <div className="form-group">
                   <label className="input-label">가게 사진 (선택)</label>
                   <input type="file" accept="image/*" onChange={e => setStoreImage(e.target.files[0])} />
