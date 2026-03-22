@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 const STOCK_STATUS = {
-  여유: { color: '#28a745' },
-  소량: { color: '#ffc107' },
-  품절: { color: '#dc3545' }
+  여유: { color: '#2ED573' },
+  소량: { color: '#FFA502' },
+  품절: { color: '#FF4757' }
 };
 
 function OwnerDashboard({ user, onClose }) {
@@ -16,11 +16,12 @@ function OwnerDashboard({ user, onClose }) {
   const [stockForm, setStockForm] = useState({ item_name: '', status: '여유', quantity: '' });
   const [stockImage, setStockImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  // ✅ 수량 수정 상태
+  const [editingQty, setEditingQty] = useState(null);
+  const [editQtyValue, setEditQtyValue] = useState('');
 
   useEffect(() => {
     loadMyStores();
-
-    // 실시간 승인 상태 구독
     const sub = supabase.channel('owner_stores_channel')
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'stores',
@@ -30,7 +31,6 @@ function OwnerDashboard({ user, onClose }) {
         setSelectedStore(prev => prev?.id === payload.new.id ? payload.new : prev);
       })
       .subscribe();
-
     return () => sub.unsubscribe();
   }, []);
 
@@ -39,26 +39,18 @@ function OwnerDashboard({ user, onClose }) {
   }, [selectedStore]);
 
   const loadMyStores = async () => {
-    const { data } = await supabase
-      .from('stores')
-      .select('*')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
+    const { data } = await supabase.from('stores').select('*')
+      .eq('owner_id', user.id).order('created_at', { ascending: false });
     setMyStores(data || []);
     if (data?.length > 0) setSelectedStore(data[0]);
     setLoading(false);
   };
 
   const loadStocks = async (storeId) => {
-    const { data } = await supabase
-      .from('stocks')
-      .select('*')
-      .eq('store_id', storeId)
-      .order('reported_at', { ascending: false });
+    const { data } = await supabase.from('stocks').select('*')
+      .eq('store_id', storeId).order('reported_at', { ascending: false });
     const latest = {};
-    (data || []).forEach(s => {
-      if (!latest[s.item_name]) latest[s.item_name] = s;
-    });
+    (data || []).forEach(s => { if (!latest[s.item_name]) latest[s.item_name] = s; });
     setStocks(Object.values(latest));
   };
 
@@ -98,6 +90,7 @@ function OwnerDashboard({ user, onClose }) {
     }
   };
 
+  // 상태 변경
   const handleUpdateStatus = async (stock, newStatus) => {
     await supabase.from('stocks').insert({
       store_id: stock.store_id,
@@ -108,6 +101,34 @@ function OwnerDashboard({ user, onClose }) {
       reported_at: new Date().toISOString(),
       image_url: stock.image_url
     });
+    loadStocks(selectedStore.id);
+  };
+
+  // ✅ 수량 수정
+  const handleUpdateQty = async (stock) => {
+    const newQty = parseInt(editQtyValue);
+    if (isNaN(newQty) || newQty < 0) { alert('올바른 수량을 입력해주세요.'); return; }
+    await supabase.from('stocks').insert({
+      store_id: stock.store_id,
+      item_name: stock.item_name,
+      status: stock.status,
+      quantity: newQty,
+      reported_by: user.id,
+      reported_at: new Date().toISOString(),
+      image_url: stock.image_url
+    });
+    setEditingQty(null);
+    setEditQtyValue('');
+    loadStocks(selectedStore.id);
+  };
+
+  // ✅ 재고 삭제 (해당 아이템의 모든 기록 삭제)
+  const handleDeleteStock = async (stock) => {
+    if (!window.confirm(`"${stock.item_name}" 재고를 삭제할까요?`)) return;
+    await supabase.from('stocks')
+      .delete()
+      .eq('store_id', stock.store_id)
+      .eq('item_name', stock.item_name);
     loadStocks(selectedStore.id);
   };
 
@@ -145,7 +166,7 @@ function OwnerDashboard({ user, onClose }) {
           </div>
         ) : (
           <>
-            {myStores.length > 1 && (
+            {myStores.length > 0 && (
               <div className="store-selector">
                 {myStores.map(store => (
                   <button key={store.id}
@@ -172,9 +193,7 @@ function OwnerDashboard({ user, onClose }) {
                         selectedStore.status === 'pending' ? '⏳ 대기중' : '❌ 거절됨'}
                     </span>
                     {selectedStore.status === 'pending' && (
-                      <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
-                        관리자 승인 대기 중이에요
-                      </div>
+                      <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>관리자 승인 대기 중이에요</div>
                     )}
                   </div>
                 </div>
@@ -183,16 +202,12 @@ function OwnerDashboard({ user, onClose }) {
                   <>
                     <div className="stock-section-header">
                       <h3>📦 재고 현황 ({stocks.length}개)</h3>
-                      <button className="btn-add-stock" onClick={() => setShowAddStock(true)}>
-                        + 재고 추가
-                      </button>
+                      <button className="btn-add-stock" onClick={() => setShowAddStock(true)}>+ 재고 추가</button>
                     </div>
                     {stocks.length === 0 ? (
                       <div className="no-stocks">
                         <p>등록된 재고가 없어요</p>
-                        <button className="btn-add-stock-big" onClick={() => setShowAddStock(true)}>
-                          + 첫 재고 등록하기
-                        </button>
+                        <button className="btn-add-stock-big" onClick={() => setShowAddStock(true)}>+ 첫 재고 등록하기</button>
                       </div>
                     ) : (
                       <div className="stock-list">
@@ -204,21 +219,63 @@ function OwnerDashboard({ user, onClose }) {
                             <div className="stock-card-info">
                               <div className="stock-card-name">{stock.item_name}</div>
                               <div className="stock-card-time">{timeAgo(stock.reported_at)}</div>
-                              <div className="stock-card-qty">수량: {stock.quantity}개</div>
+
+                              {/* ✅ 수량 수정 */}
+                              {editingQty === stock.id ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                  <input
+                                    type="number" min="0" value={editQtyValue}
+                                    onChange={e => setEditQtyValue(e.target.value)}
+                                    style={{ width: '70px', padding: '3px 8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '12px' }}
+                                    autoFocus
+                                  />
+                                  <button onClick={() => handleUpdateQty(stock)}
+                                    style={{ fontSize: '11px', padding: '3px 8px', background: '#2ED573', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                                    저장
+                                  </button>
+                                  <button onClick={() => { setEditingQty(null); setEditQtyValue(''); }}
+                                    style={{ fontSize: '11px', padding: '3px 8px', background: '#f0f0f0', color: '#666', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                                    취소
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                                  <span className="stock-card-qty">수량: {stock.quantity}개</span>
+                                  <button onClick={() => { setEditingQty(stock.id); setEditQtyValue(String(stock.quantity)); }}
+                                    style={{ fontSize: '11px', padding: '2px 7px', background: '#f0f0f0', color: '#555', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                                    ✏️ 수정
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                            <div className="stock-card-actions">
-                              {Object.keys(STOCK_STATUS).map(s => (
-                                <button key={s}
-                                  className={`status-btn ${stock.status === s ? 'active' : ''}`}
-                                  style={{
-                                    borderColor: STOCK_STATUS[s].color,
-                                    color: stock.status === s ? 'white' : STOCK_STATUS[s].color,
-                                    backgroundColor: stock.status === s ? STOCK_STATUS[s].color : 'white'
-                                  }}
-                                  onClick={() => handleUpdateStatus(stock, s)}>
-                                  {s}
-                                </button>
-                              ))}
+
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                              {/* 상태 버튼 */}
+                              <div className="stock-card-actions">
+                                {Object.keys(STOCK_STATUS).map(s => (
+                                  <button key={s}
+                                    className={`status-btn ${stock.status === s ? 'active' : ''}`}
+                                    style={{
+                                      borderColor: STOCK_STATUS[s].color,
+                                      color: stock.status === s ? 'white' : STOCK_STATUS[s].color,
+                                      backgroundColor: stock.status === s ? STOCK_STATUS[s].color : 'white'
+                                    }}
+                                    onClick={() => handleUpdateStatus(stock, s)}>
+                                    {s}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* ✅ 삭제 버튼 */}
+                              <button onClick={() => handleDeleteStock(stock)}
+                                style={{
+                                  fontSize: '11px', padding: '3px 10px',
+                                  background: 'none', color: '#FF4757',
+                                  border: '1px solid #FF4757', borderRadius: '6px',
+                                  cursor: 'pointer'
+                                }}>
+                                🗑️ 삭제
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -233,9 +290,7 @@ function OwnerDashboard({ user, onClose }) {
                 ) : (
                   <div className="pending-message">
                     <p>⏳ 관리자 승인 후 재고를 관리할 수 있어요</p>
-                    <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
-                      승인되면 자동으로 업데이트돼요 🔔
-                    </p>
+                    <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>승인되면 자동으로 업데이트돼요 🔔</p>
                   </div>
                 )}
               </>
@@ -243,6 +298,7 @@ function OwnerDashboard({ user, onClose }) {
           </>
         )}
 
+        {/* 재고 추가 폼 */}
         {showAddStock && (
           <div className="modal-overlay" onClick={() => setShowAddStock(false)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
@@ -252,37 +308,33 @@ function OwnerDashboard({ user, onClose }) {
               </div>
               <div className="modal-body">
                 <form onSubmit={handleAddStock} className="report-form">
-<div className="form-group">
-  <label>상품명 *</label>
-  {/* 기존 트렌드 아이템 선택 */}
-  <div style={{ marginBottom: '8px' }}>
-    <p style={{ fontSize: '11px', color: '#999', marginBottom: '6px' }}>
-      🔥 현재 트렌드 아이템 선택
-    </p>
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-      {['라부부 크리미 시리즈', '버터떡 오리지널', '두쫀쿠 오리지널', '라부부 홀리데이 시리즈', '조던1 레트로 하이 OG'].map(name => (
-        <button key={name} type="button"
-          onClick={() => setStockForm(p => ({ ...p, item_name: name }))}
-          style={{
-            fontSize: '11px', padding: '4px 10px',
-            background: stockForm.item_name === name ? '#FF4757' : '#f0f0f0',
-            color: stockForm.item_name === name ? 'white' : '#555',
-            border: 'none', borderRadius: '20px', cursor: 'pointer'
-          }}>
-          {name}
-        </button>
-      ))}
-    </div>
-  </div>
-  <p style={{ fontSize: '11px', color: '#999', marginBottom: '4px' }}>또는 직접 입력</p>
-  <input type="text" value={stockForm.item_name}
-    onChange={e => setStockForm(p => ({ ...p, item_name: e.target.value }))}
-    placeholder="예: 버터떡 오리지널" required />
-</div>
+                  <div className="form-group">
+                    <label>상품명 *</label>
+                    <div style={{ marginBottom: '8px' }}>
+                      <p style={{ fontSize: '11px', color: '#999', marginBottom: '6px' }}>🔥 현재 트렌드 아이템 선택</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {['라부부 크리미 시리즈', '버터떡 오리지널', '두쫀쿠 오리지널', '라부부 홀리데이 시리즈', '조던1 레트로 하이 OG'].map(name => (
+                          <button key={name} type="button"
+                            onClick={() => setStockForm(p => ({ ...p, item_name: name }))}
+                            style={{
+                              fontSize: '11px', padding: '4px 10px',
+                              background: stockForm.item_name === name ? '#FF4757' : '#f0f0f0',
+                              color: stockForm.item_name === name ? 'white' : '#555',
+                              border: 'none', borderRadius: '20px', cursor: 'pointer'
+                            }}>
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#999', marginBottom: '4px' }}>또는 직접 입력</p>
+                    <input type="text" value={stockForm.item_name}
+                      onChange={e => setStockForm(p => ({ ...p, item_name: e.target.value }))}
+                      placeholder="예: 버터떡 오리지널" required />
+                  </div>
                   <div className="form-group">
                     <label>재고 상태 *</label>
-                    <select value={stockForm.status}
-                      onChange={e => setStockForm(p => ({ ...p, status: e.target.value }))}>
+                    <select value={stockForm.status} onChange={e => setStockForm(p => ({ ...p, status: e.target.value }))}>
                       <option value="여유">🟢 여유</option>
                       <option value="소량">🟡 소량</option>
                       <option value="품절">🔴 품절</option>
@@ -296,8 +348,7 @@ function OwnerDashboard({ user, onClose }) {
                   </div>
                   <div className="form-group">
                     <label>상품 사진 (선택)</label>
-                    <input type="file" accept="image/*"
-                      onChange={e => setStockImage(e.target.files[0])} />
+                    <input type="file" accept="image/*" onChange={e => setStockImage(e.target.files[0])} />
                   </div>
                   <div className="form-actions">
                     <button type="button" className="btn btn-cancel" onClick={() => setShowAddStock(false)}>취소</button>

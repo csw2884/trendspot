@@ -766,7 +766,7 @@ function App() {
                   <label className="input-label">가게 이름 *</label>
                   <input className="input" type="text" value={customStoreName}
                     onChange={e => setCustomStoreName(e.target.value)}
-                    placeholder="예: 버터떡 이태원점" required />
+                    placeholder="예: 홍대 팝마트" required />
                 </div>
                 <div className="form-group">
                   <label className="input-label">카테고리 *</label>
