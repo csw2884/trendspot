@@ -251,9 +251,15 @@ function StoreDetail({ store, stocks, onClose, onReport, user, selectedTrend }) 
             </>
           )}
 
-          <button className="btn-report-store" onClick={() => onReport(store)}>
-            📝 직접 확인하고 제보하기 (+10P)
-          </button>
+<button className="btn-report-store" onClick={() => {
+  if (!user) {
+    alert('로그인 후 제보할 수 있어요! 😊');
+    return;
+  }
+  onReport(store);
+}}>
+  📝 직접 확인하고 제보하기 (+10P)
+</button>
         </div>
       </div>
     </div>
