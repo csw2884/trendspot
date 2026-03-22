@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'locationCode 파라미터 필요' });
   }
 
-  const API_KEY = 'FWZEWdan69IjMsw';
+const API_KEY = 'FWZCWdan69IjMsw';
 
   try {
     const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/citydata_ppltn/1/5/${locationCode}`;
