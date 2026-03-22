@@ -1,10 +1,6 @@
 // 서울시 실시간 도시데이터 API 유틸리티
-// TrendSpot - 유동인구 혼잡도 표시 기능
+// Vercel API 프록시를 통해 CORS 우회
 
-const SEOUL_API_KEY = '46575a435764616e3639496a4d7377';
-const SEOUL_API_BASE_URL = 'http://openAPI.seoul.go.kr:8088';
-
-// 서울시 주요 120장소 목록 (매장 위치와 매칭용)
 const SEOUL_LOCATIONS = [
   { name: '광화문·덕수궁', code: 'POI009', lat: 37.5662, lng: 126.9779 },
   { name: '종로·청계', code: 'POI010', lat: 37.5689, lng: 126.9849 },
@@ -22,154 +18,113 @@ const SEOUL_LOCATIONS = [
   { name: '혜화·대학로', code: 'POI022', lat: 37.5816, lng: 127.0025 },
   { name: '신사·논현', code: 'POI023', lat: 37.5163, lng: 127.0290 },
   { name: '왕십리·성동구청', code: 'POI024', lat: 37.5616, lng: 127.0376 },
-  { name: '중구청·신당', code: 'POI025', lat: 37.5607, lng: 127.0178 },
   { name: '용산역 일대', code: 'POI026', lat: 37.5299, lng: 126.9649 },
   { name: '시청·서울역', code: 'POI027', lat: 37.5663, lng: 126.9779 },
   { name: '가로수길', code: 'POI028', lat: 37.5207, lng: 127.0230 },
   { name: '성수·뚝섬', code: 'POI029', lat: 37.5448, lng: 127.0557 },
-  { name: '방배·사당', code: 'POI030', lat: 37.4762, lng: 126.9814 },
   { name: '을지로·동대문', code: 'POI031', lat: 37.5714, lng: 127.0094 },
   { name: '연남·망원', code: 'POI032', lat: 37.5655, lng: 126.9138 },
-  { name: '성북·안암', code: 'POI033', lat: 37.5890, lng: 127.0295 }
 ];
 
-// 혼잡도 레벨별 설정
 const CONGESTION_CONFIG = {
-  '붐빔': { 
-    color: '#FF4757', 
-    icon: '🔴', 
-    description: '매우 혼잡함',
-    level: 4 
-  },
-  '약간 붐빔': { 
-    color: '#FF7675', 
-    icon: '🟠', 
-    description: '다소 혼잡함',
-    level: 3 
-  },
-  '보통': { 
-    color: '#FDCB6E', 
-    icon: '🟡', 
-    description: '적당함',
-    level: 2 
-  },
-  '여유': { 
-    color: '#00B894', 
-    icon: '🟢', 
-    description: '여유로움',
-    level: 1 
-  }
+  '붐빔':      { color: '#FF4757', icon: '🔴', description: '매우 혼잡', level: 4 },
+  '약간 붐빔': { color: '#FF7675', icon: '🟠', description: '다소 혼잡', level: 3 },
+  '보통':      { color: '#FDCB6E', icon: '🟡', description: '적당함',    level: 2 },
+  '여유':      { color: '#00B894', icon: '🟢', description: '여유로움',  level: 1 },
 };
 
-// API 호출 캐시 (10분)
+// 캐시 (10분)
 const cache = new Map();
-const CACHE_DURATION = 10 * 60 * 1000; // 10분
+const CACHE_DURATION = 10 * 60 * 1000;
 
-// 두 좌표 간의 거리 계산 (Haversine Formula)
 function calculateDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371; // 지구 반지름(km)
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-           Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-           Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c; // km 단위
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// 매장 위치에서 가장 가까운 서울시 실시간 도시데이터 장소 찾기
 export function findNearestSeoulLocation(storeLat, storeLng) {
-  let nearestLocation = null;
-  let minDistance = Infinity;
-
-  SEOUL_LOCATIONS.forEach(location => {
-    const distance = calculateDistance(storeLat, storeLng, location.lat, location.lng);
-    if (distance < minDistance && distance <= 2.0) { // 2km 이내만
-      minDistance = distance;
-      nearestLocation = location;
-    }
+  let nearest = null;
+  let minDist = Infinity;
+  SEOUL_LOCATIONS.forEach(loc => {
+    const d = calculateDistance(storeLat, storeLng, loc.lat, loc.lng);
+    if (d < minDist && d <= 2.0) { minDist = d; nearest = loc; }
   });
-
-  return nearestLocation ? { ...nearestLocation, distance: minDistance } : null;
+  return nearest ? { ...nearest, distance: minDist } : null;
 }
 
-// 서울시 실시간 인구데이터 API 호출 (임시 테스트 모드)
-export async function fetchCongestionData(locationName) {
+// ✅ 실제 API 호출 (Vercel 프록시 통해 CORS 우회)
+export async function fetchCongestionData(locationCode) {
+  const cacheKey = locationCode;
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
+  }
+
   try {
-    // 임시로 테스트 데이터 반환 (API 프록시 문제로 인한 우회)
-    const testData = {
-      areaName: locationName,
-      congestionLevel: "보통",
-      congestionMessage: "적당한 혼잡도입니다.",
-      populationMin: 10000,
-      populationMax: 15000,
-      maleRate: 50.0,
-      femaleRate: 50.0,
-      updateTime: new Date().toISOString(),
-      forecast: [],
-      config: CONGESTION_CONFIG['보통']
+    const res = await fetch(`/api/seoul?locationCode=${locationCode}`, {
+      signal: AbortSignal.timeout(5000)
+    });
+
+    if (!res.ok) throw new Error(`프록시 응답 오류: ${res.status}`);
+
+    const data = await res.json();
+    const config = CONGESTION_CONFIG[data.congestionLevel] || CONGESTION_CONFIG['보통'];
+
+    const result = {
+      areaName: data.areaName,
+      congestionLevel: data.congestionLevel,
+      congestionMessage: data.congestionMessage,
+      populationMin: data.populationMin,
+      populationMax: data.populationMax,
+      updateTime: data.updateTime,
+      config,
     };
-    
-    return testData;
-    
+
+    cache.set(cacheKey, { data: result, timestamp: Date.now() });
+    return result;
+
   } catch (error) {
-    console.error('혼잡도 데이터 조회 실패:', error);
+    console.warn('서울시 API 호출 실패, 기본값 사용:', error.message);
+    // 실패 시 null 반환 (가짜 데이터 X)
     return null;
   }
 }
 
-// 매장 정보에 혼잡도 데이터 추가
 export async function addCongestionToStore(store) {
   try {
-    const nearestLocation = findNearestSeoulLocation(store.lat, store.lng);
-    
-    if (!nearestLocation) {
-      return { ...store, congestion: null };
-    }
+    const nearest = findNearestSeoulLocation(store.lat, store.lng);
+    if (!nearest) return { ...store, congestion: null };
 
-    const congestionData = await fetchCongestionData(nearestLocation.name);
-    
+    const data = await fetchCongestionData(nearest.code);
     return {
       ...store,
-      congestion: congestionData ? {
-        ...congestionData,
-        nearestLocation,
-        distance: nearestLocation.distance
-      } : null
+      congestion: data ? { ...data, nearestLocation: nearest, distance: nearest.distance } : null
     };
-
-  } catch (error) {
-    console.error('매장 혼잡도 데이터 추가 실패:', error);
+  } catch (e) {
     return { ...store, congestion: null };
   }
 }
 
-// 모든 매장에 혼잡도 데이터 일괄 추가
 export async function addCongestionToAllStores(stores) {
   try {
-    const storesWithCongestion = await Promise.all(
-      stores.map(store => addCongestionToStore(store))
-    );
-    
-    return storesWithCongestion;
-  } catch (error) {
-    console.error('전체 매장 혼잡도 데이터 추가 실패:', error);
-    return stores; // 실패 시 원본 데이터 반환
+    return await Promise.all(stores.map(s => addCongestionToStore(s)));
+  } catch (e) {
+    return stores;
   }
 }
 
-// 혼잡도 정보 포맷팅 유틸리티
 export function formatCongestionInfo(congestion) {
   if (!congestion) return null;
-
-  const populationRange = `${congestion.populationMin?.toLocaleString()} ~ ${congestion.populationMax?.toLocaleString()}명`;
-  
   return {
     level: congestion.congestionLevel,
-    icon: congestion.config.icon,
-    color: congestion.config.color,
-    description: congestion.config.description,
-    population: populationRange,
+    icon: congestion.config?.icon,
+    color: congestion.config?.color,
+    description: congestion.config?.description,
+    population: `${congestion.populationMin?.toLocaleString()} ~ ${congestion.populationMax?.toLocaleString()}명`,
     message: congestion.congestionMessage,
     updateTime: congestion.updateTime,
     locationName: congestion.nearestLocation?.name,
