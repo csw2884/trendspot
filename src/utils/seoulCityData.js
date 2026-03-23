@@ -77,7 +77,6 @@ export async function fetchCongestionData(locationCode) {
 
     if (!res.ok) throw new Error(`서울시 API 응답 오류: ${res.status}`);
 
-    // Edge Function이 이미 파싱해서 반환하므로 바로 사용
     const data = await res.json();
     if (!data.areaName) throw new Error('데이터 없음');
 
@@ -117,9 +116,17 @@ export async function addCongestionToStore(store) {
   }
 }
 
+// ✅ 수정: 3개씩 나눠서 요청 (동시 폭탄 방지)
 export async function addCongestionToAllStores(stores) {
   try {
-    return await Promise.all(stores.map(s => addCongestionToStore(s)));
+    const results = [];
+    const chunkSize = 3;
+    for (let i = 0; i < stores.length; i += chunkSize) {
+      const chunk = stores.slice(i, i + chunkSize);
+      const chunkResults = await Promise.all(chunk.map(s => addCongestionToStore(s)));
+      results.push(...chunkResults);
+    }
+    return results;
   } catch (e) {
     return stores;
   }
