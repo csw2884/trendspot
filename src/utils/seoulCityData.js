@@ -33,7 +33,6 @@ const CONGESTION_CONFIG = {
   '여유':      { color: '#00B894', icon: '🟢', description: '여유로움',  level: 1 },
 };
 
-// 캐시 (10분)
 const cache = new Map();
 const CACHE_DURATION = 10 * 60 * 1000;
 
@@ -56,48 +55,51 @@ export function findNearestSeoulLocation(storeLat, storeLng) {
   return nearest ? { ...nearest, distance: minDist } : null;
 }
 
-// ✅ Supabase Edge Function 프록시 통해 호출
 export async function fetchCongestionData(locationCode) {
-  const cacheKey = locationCode;
-  const cached = cache.get(cacheKey);
+  const cached = cache.get(locationCode);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached.data;
   }
 
-  try {
-    const res = await fetch(
-      `https://pwfhnhunvohyjeqkumqr.supabase.co/functions/v1/seoul-proxy?locationCode=${locationCode}`,
-      {
-        signal: AbortSignal.timeout(5000),
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
+
+      const res = await fetch(
+        `https://pwfhnhunvohyjeqkumqr.supabase.co/functions/v1/seoul-proxy?locationCode=${locationCode}`,
+        {
+          signal: AbortSignal.timeout(8000),
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
         }
+      );
+
+      if (!res.ok) throw new Error(`서울시 API 응답 오류: ${res.status}`);
+
+      const data = await res.json();
+      if (!data.areaName) throw new Error('데이터 없음');
+
+      const congestionLevel = data.congestionLevel || '보통';
+      const result = {
+        areaName: data.areaName,
+        congestionLevel,
+        congestionMessage: data.congestionMessage || '',
+        populationMin: data.populationMin || 0,
+        populationMax: data.populationMax || 0,
+        updateTime: data.updateTime || '',
+        config: CONGESTION_CONFIG[congestionLevel] || CONGESTION_CONFIG['보통'],
+      };
+
+      cache.set(locationCode, { data: result, timestamp: Date.now() });
+      return result;
+
+    } catch (error) {
+      if (attempt === 2) {
+        console.warn('서울시 API 호출 실패:', error.message);
+        return null;
       }
-    );
-
-    if (!res.ok) throw new Error(`서울시 API 응답 오류: ${res.status}`);
-
-    const data = await res.json();
-    if (!data.areaName) throw new Error('데이터 없음');
-
-    const congestionLevel = data.congestionLevel || '보통';
-
-    const result = {
-      areaName: data.areaName,
-      congestionLevel,
-      congestionMessage: data.congestionMessage || '',
-      populationMin: data.populationMin || 0,
-      populationMax: data.populationMax || 0,
-      updateTime: data.updateTime || '',
-      config: CONGESTION_CONFIG[congestionLevel] || CONGESTION_CONFIG['보통'],
-    };
-
-    cache.set(cacheKey, { data: result, timestamp: Date.now() });
-    return result;
-
-  } catch (error) {
-    console.warn('서울시 API 호출 실패, 기본값 사용:', error.message);
-    return null;
+    }
   }
 }
 
@@ -116,7 +118,6 @@ export async function addCongestionToStore(store) {
   }
 }
 
-// ✅ 수정: 3개씩 나눠서 요청 (동시 폭탄 방지)
 export async function addCongestionToAllStores(stores) {
   try {
     const results = [];
