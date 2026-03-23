@@ -4,7 +4,7 @@ export default async function handler(req, res) {
 
   try {
     const API_KEY = '46575a435764616e3639496a4d7377';
-    const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/citydata_ppltn/1/5/${locationCode}`;
+    const url = `https://openapi.seoul.go.kr:5000/${API_KEY}/json/citydata_ppltn/1/5/${locationCode}`;
     const response = await fetch(url);
     const raw = await response.json();
     const list = raw?.["SeoulRtd.citydata_ppltn"];
