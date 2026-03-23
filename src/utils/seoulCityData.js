@@ -92,7 +92,7 @@ export async function fetchCongestionData(locationCode) {
 
     } catch (error) {
       if (attempt === 2) {
-        console.warn('서울시 API 호출 실패:', error.message);
+        // console.warn 제거 - 조용히 실패 처리
         return null;
       }
     }
