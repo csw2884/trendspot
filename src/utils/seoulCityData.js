@@ -1,6 +1,3 @@
-// 서울시 실시간 도시데이터 API 유틸리티
-// Supabase Edge Function 프록시를 통해 CORS 우회
-
 const SEOUL_LOCATIONS = [
   { name: '광화문·덕수궁', code: 'POI009', lat: 37.5662, lng: 126.9779 },
   { name: '종로·청계', code: 'POI010', lat: 37.5689, lng: 126.9849 },
@@ -66,13 +63,8 @@ export async function fetchCongestionData(locationCode) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
 
       const res = await fetch(
-        `https://pwfhnhunvohyjeqkumqr.supabase.co/functions/v1/seoul-proxy?locationCode=${locationCode}`,
-        {
-          signal: AbortSignal.timeout(8000),
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-          }
-        }
+        `/api/seoul-proxy?locationCode=${locationCode}`,
+        { signal: AbortSignal.timeout(8000) }
       );
 
       if (!res.ok) throw new Error(`서울시 API 응답 오류: ${res.status}`);
@@ -107,7 +99,6 @@ export async function addCongestionToStore(store) {
   try {
     const nearest = findNearestSeoulLocation(store.lat, store.lng);
     if (!nearest) return { ...store, congestion: null };
-
     const data = await fetchCongestionData(nearest.code);
     return {
       ...store,
