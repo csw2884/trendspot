@@ -63,12 +63,16 @@ export async function fetchCongestionData(locationCode) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * attempt));
 
       const res = await fetch(
-        `/api/seoul-proxy?locationCode=${locationCode}`,
-        { signal: AbortSignal.timeout(8000) }
+        `https://pwfhnhunvohyjeqkumqr.supabase.co/functions/v1/seoul-proxy?locationCode=${locationCode}`,
+        {
+          signal: AbortSignal.timeout(8000),
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+          }
+        }
       );
 
       if (!res.ok) throw new Error(`서울시 API 응답 오류: ${res.status}`);
-
       const data = await res.json();
       if (!data.areaName) throw new Error('데이터 없음');
 
