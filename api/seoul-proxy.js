@@ -1,15 +1,25 @@
+import http from 'http';
+
 export default async function handler(req, res) {
   const { locationCode } = req.query;
   if (!locationCode) return res.status(400).json({ error: 'locationCode required' });
 
   try {
     const API_KEY = '46575a435764616e3639496a4d7377';
-    const url = `https://openapi.seoul.go.kr:5000/${API_KEY}/json/citydata_ppltn/1/5/${locationCode}`;
-    const response = await fetch(url);
-    const raw = await response.json();
+    const raw = await new Promise((resolve, reject) => {
+      const url = `http://openapi.seoul.go.kr:8088/${API_KEY}/json/citydata_ppltn/1/5/${locationCode}`;
+      http.get(url, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => resolve(JSON.parse(data)));
+        response.on('error', reject);
+      }).on('error', reject);
+    });
+
     const list = raw?.["SeoulRtd.citydata_ppltn"];
     if (!list || list.length === 0) throw new Error('no data');
     const item = list[0];
+
     res.status(200).json({
       areaName: item.AREA_NM,
       congestionLevel: item.AREA_CONGEST_LVL,
