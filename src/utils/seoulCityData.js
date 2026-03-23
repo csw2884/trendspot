@@ -1,7 +1,5 @@
 // 서울시 실시간 도시데이터 API 유틸리티
-// 클라이언트에서 직접 호출 (CORS 허용됨)
-
-const API_KEY = 'FWZCWdan69IjMsw';
+// Supabase Edge Function 프록시를 통해 CORS 우회
 
 const SEOUL_LOCATIONS = [
   { name: '광화문·덕수궁', code: 'POI009', lat: 37.5662, lng: 126.9779 },
@@ -58,7 +56,7 @@ export function findNearestSeoulLocation(storeLat, storeLng) {
   return nearest ? { ...nearest, distance: minDist } : null;
 }
 
-// ✅ 클라이언트에서 직접 호출 (Vercel 프록시 제거)
+// ✅ Supabase Edge Function 프록시 통해 호출
 export async function fetchCongestionData(locationCode) {
   const cacheKey = locationCode;
   const cached = cache.get(cacheKey);
@@ -68,26 +66,30 @@ export async function fetchCongestionData(locationCode) {
 
   try {
     const res = await fetch(
-      `http://openapi.seoul.go.kr:8088/${API_KEY}/json/citydata/1/5/${locationCode}`,
-      { signal: AbortSignal.timeout(5000) }
+      `https://pwfhnhunvohyjeqkumqr.supabase.co/functions/v1/seoul-proxy?locationCode=${locationCode}`,
+      {
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+        }
+      }
     );
 
     if (!res.ok) throw new Error(`서울시 API 응답 오류: ${res.status}`);
 
-    const raw = await res.json();
-    const citydata = raw?.SeoulRtd?.CITYDATA;
-    if (!citydata) throw new Error('데이터 없음');
+    // Edge Function이 이미 파싱해서 반환하므로 바로 사용
+    const data = await res.json();
+    if (!data.areaName) throw new Error('데이터 없음');
 
-    const ppltn = citydata.LIVE_PPLTN_STTS?.[0];
-    const congestionLevel = ppltn?.AREA_CONGEST_LVL || '보통';
+    const congestionLevel = data.congestionLevel || '보통';
 
     const result = {
-      areaName: citydata.AREA_NM,
+      areaName: data.areaName,
       congestionLevel,
-      congestionMessage: ppltn?.AREA_CONGEST_MSG || '',
-      populationMin: parseInt(ppltn?.AREA_PPLTN_MIN) || 0,
-      populationMax: parseInt(ppltn?.AREA_PPLTN_MAX) || 0,
-      updateTime: ppltn?.PPLTN_TIME || '',
+      congestionMessage: data.congestionMessage || '',
+      populationMin: data.populationMin || 0,
+      populationMax: data.populationMax || 0,
+      updateTime: data.updateTime || '',
       config: CONGESTION_CONFIG[congestionLevel] || CONGESTION_CONFIG['보통'],
     };
 
