@@ -386,7 +386,7 @@ function App() {
   };
 
   const addPoints = async (userId, points) => {
-    const { data } = await supabase.from('user_points').select('*').eq('user_id', userId).single();
+    const { data } = await supabase.from('user_points').select('*').eq('user_id', userId).maybeSingle();
     if (data) {
       await supabase.from('user_points').update({
         points: data.points + points, total_points: data.total_points + points,
@@ -419,7 +419,7 @@ function App() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const { data: todayLogs } = await supabase.from('activity_logs').select('*')
       .eq('user_id', user.id).eq('action', 'stock_report').gte('created_at', today.toISOString());
-    const userPoints = await supabase.from('user_points').select('points').eq('user_id', user.id).single();
+    const userPoints = await supabase.from('user_points').select('points').eq('user_id', user.id).maybeSingle();
     const pts = userPoints?.data?.points || 0;
     const dailyLimit = pts >= 300 ? 10 : pts >= 100 ? 5 : 3;
     if (todayLogs && todayLogs.length >= dailyLimit) {
