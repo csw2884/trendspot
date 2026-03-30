@@ -14,7 +14,7 @@ import OnlineCounter from './components/OnlineCounter';
 import Onboarding from './components/Onboarding';
 import UserProfile from './components/UserProfile';
 
-const KAKAO_MAP_KEY = '15dec95eb60278894a9e834e679af110';
+const KAKAO_MAP_KEY = '8371040c2d911829d4c2c9f21447e27f';
 
 const STOCK_STATUS = {
   여유: { color: '#2ED573', name: '여유' },
