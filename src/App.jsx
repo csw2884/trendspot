@@ -145,31 +145,32 @@ const loadStoresAndStocks = async () => {
   try {
     setLoadingCongestion(true);
 
-    // stocks는 최근 7일치 + 최대 500개만 가져오기
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // stores + stocks 동시에 가져오기
     const [storesRes, stocksRes] = await Promise.all([
       supabase.from('stores').select('*').eq('status', 'approved'),
       supabase.from('stocks').select('*')
         .gte('reported_at', sevenDaysAgo)
         .order('reported_at', { ascending: false })
-        .limit(500)
+        .limit(300)
     ]);
 
-    let storesWithCongestion = storesRes.data || [];
+    // 지도 먼저 보여주기
+    setStores(storesRes.data || []);
     setStocks(stocksRes.data || []);
-
-    // 혼잡도는 백그라운드에서 처리 (로딩 블로킹 안 함)
-    setStores(storesWithCongestion);
     setLoadingCongestion(false);
 
-    const seoulStores = storesWithCongestion.filter(s =>
+    // 혼잡도는 백그라운드에서 (지도 로딩 안 막음)
+    const seoulStores = (storesRes.data || []).filter(s =>
       s.address?.includes('서울') || (s.lat >= 37.4 && s.lat <= 37.7)
     );
     if (seoulStores.length > 0) {
-      try {
-        const updated = await addCongestionToAllStores(seoulStores);
-        setStores(prev => prev.map(s => updated.find(u => u.id === s.id) || s));
-      } catch (e) { console.error(e); }
+      addCongestionToAllStores(seoulStores)
+        .then(updated => {
+          setStores(prev => prev.map(s => updated.find(u => u.id === s.id) || s));
+        })
+        .catch(e => console.error(e));
     }
   } catch (e) {
     console.error('데이터 로드 실패:', e);
