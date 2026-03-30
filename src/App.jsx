@@ -163,7 +163,7 @@ function App() {
   };
 
   const checkAdmin = async (email) => {
-    const { data } = await supabase.from('admins').select('*').eq('email', email).single();
+    const { data } = await supabase.from('admins').select('*').eq('email', email).maybeSingle();
     setIsAdmin(!!data);
   };
 
