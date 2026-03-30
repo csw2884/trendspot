@@ -141,26 +141,41 @@ function App() {
     setTrends(sorted);
   };
 
-  const loadStoresAndStocks = async () => {
-    try {
-      setLoadingCongestion(true);
-      const { data: storesData } = await supabase.from('stores').select('*').eq('status', 'approved');
-      const { data: stocksData } = await supabase.from('stocks').select('*').order('reported_at', { ascending: false });
-      let storesWithCongestion = storesData || [];
-      const seoulStores = storesWithCongestion.filter(s =>
-        s.address?.includes('서울') || (s.lat >= 37.4 && s.lat <= 37.7)
-      );
-      if (seoulStores.length > 0) {
-        try {
-          const updated = await addCongestionToAllStores(seoulStores);
-          storesWithCongestion = storesWithCongestion.map(s => updated.find(u => u.id === s.id) || s);
-        } catch (e) { console.error(e); }
-      }
-      setStores(storesWithCongestion);
-      setStocks(stocksData || []);
-    } catch (e) { console.error('데이터 로드 실패:', e); }
-    finally { setLoadingCongestion(false); }
-  };
+const loadStoresAndStocks = async () => {
+  try {
+    setLoadingCongestion(true);
+
+    // stocks는 최근 7일치 + 최대 500개만 가져오기
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [storesRes, stocksRes] = await Promise.all([
+      supabase.from('stores').select('*').eq('status', 'approved'),
+      supabase.from('stocks').select('*')
+        .gte('reported_at', sevenDaysAgo)
+        .order('reported_at', { ascending: false })
+        .limit(500)
+    ]);
+
+    let storesWithCongestion = storesRes.data || [];
+    setStocks(stocksRes.data || []);
+
+    // 혼잡도는 백그라운드에서 처리 (로딩 블로킹 안 함)
+    setStores(storesWithCongestion);
+    setLoadingCongestion(false);
+
+    const seoulStores = storesWithCongestion.filter(s =>
+      s.address?.includes('서울') || (s.lat >= 37.4 && s.lat <= 37.7)
+    );
+    if (seoulStores.length > 0) {
+      try {
+        const updated = await addCongestionToAllStores(seoulStores);
+        setStores(prev => prev.map(s => updated.find(u => u.id === s.id) || s));
+      } catch (e) { console.error(e); }
+    }
+  } catch (e) {
+    console.error('데이터 로드 실패:', e);
+    setLoadingCongestion(false);
+  }
+};
 
   const checkAdmin = async (email) => {
     const { data } = await supabase.from('admins').select('*').eq('email', email).maybeSingle();
