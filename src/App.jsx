@@ -1,7 +1,7 @@
 import StatsDashboard from './components/StatsDashboard';
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import './App.css';
-import { addCongestionToAllStores } from './utils/seoulCityData';
+// import { addCongestionToAllStores } from './utils/seoulCityData'; // ✅ 서버 안정화 후 재활성화 예정
 import Auth from './components/Auth';
 import AIAssistant from './components/AIAssistant';
 import Admin from './components/Admin';
@@ -56,8 +56,8 @@ function App() {
   const [storeSearchResults, setStoreSearchResults] = useState([]);
   const [selectedKakaoPlace, setSelectedKakaoPlace] = useState(null);
   const [storeSearchLoading, setStoreSearchLoading] = useState(false);
-  // ✅ 모바일 제보: GPS 로딩 상태
   const [locationLoading, setLocationLoading] = useState(false);
+  const [weather, setWeather] = useState(null); // ✅ 날씨 상태 추가
 
   const mapContainerRef = useRef(null);
   const markersRef = useRef([]);
@@ -74,6 +74,7 @@ function App() {
     });
     loadStoresAndStocks();
     getUserLocation();
+    loadWeather(); // ✅ 날씨 로딩
     return () => subscription.unsubscribe();
   }, []);
 
@@ -89,13 +90,10 @@ function App() {
     if (kakaoLoaded && !mapRef.current) setTimeout(() => initializeMap(), 300);
   }, [kakaoLoaded]);
 
-  // ✅ 관리자 페이지에서 돌아올 때 지도 재초기화
   useEffect(() => {
     if (!showAdminPage && kakaoLoaded) {
       setTimeout(() => {
-        if (!mapRef.current && mapContainerRef.current) {
-          initializeMap();
-        }
+        if (!mapRef.current && mapContainerRef.current) initializeMap();
       }, 400);
     }
   }, [showAdminPage]);
@@ -119,6 +117,17 @@ function App() {
     return () => sub.unsubscribe();
   }, []);
 
+  // ✅ 날씨 로딩 함수
+  const loadWeather = async () => {
+    try {
+      const res = await fetch('/api/weather');
+      const data = await res.json();
+      setWeather(data);
+    } catch (e) {
+      console.error('날씨 로딩 실패:', e);
+    }
+  };
+
   const calculateTrends = () => {
     const now = Date.now();
     const scoreMap = {};
@@ -141,42 +150,34 @@ function App() {
     setTrends(sorted);
   };
 
-const loadStoresAndStocks = async () => {
-  try {
-    setLoadingCongestion(true);
+  const loadStoresAndStocks = async () => {
+    try {
+      setLoadingCongestion(true);
+      const [storesRes, stocksRes] = await Promise.all([
+        supabase.from('stores').select('*').eq('status', 'approved'),
+        supabase.from('stocks').select('*').order('reported_at', { ascending: false })
+      ]);
 
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      setStores(storesRes.data || []);
+      setStocks(stocksRes.data || []);
 
-    // stores + stocks 동시에 가져오기
-    const [storesRes, stocksRes] = await Promise.all([
-      supabase.from('stores').select('*').eq('status', 'approved'),
-      supabase.from('stocks').select('*')
-        .gte('reported_at', sevenDaysAgo)
-        .order('reported_at', { ascending: false })
-        .limit(300)
-    ]);
+      // ✅ 서울시 실시간 혼잡도 API 연동 (서버 안정화 후 재활성화 예정)
+      // const seoulStores = (storesRes.data || []).filter(s =>
+      //   s.address?.includes('서울') || (s.lat >= 37.4 && s.lat <= 37.7)
+      // );
+      // if (seoulStores.length > 0) {
+      //   try {
+      //     const updated = await addCongestionToAllStores(seoulStores);
+      //     setStores(prev => prev.map(s => updated.find(u => u.id === s.id) || s));
+      //   } catch (e) { console.error(e); }
+      // }
 
-    // 지도 먼저 보여주기
-    setStores(storesRes.data || []);
-    setStocks(stocksRes.data || []);
-    setLoadingCongestion(false);
-
-    // 혼잡도는 백그라운드에서 (지도 로딩 안 막음)
-    const seoulStores = (storesRes.data || []).filter(s =>
-      s.address?.includes('서울') || (s.lat >= 37.4 && s.lat <= 37.7)
-    );
-    if (seoulStores.length > 0) {
-      addCongestionToAllStores(seoulStores)
-        .then(updated => {
-          setStores(prev => prev.map(s => updated.find(u => u.id === s.id) || s));
-        })
-        .catch(e => console.error(e));
+    } catch (e) {
+      console.error('데이터 로드 실패:', e);
+    } finally {
+      setLoadingCongestion(false);
     }
-  } catch (e) {
-    console.error('데이터 로드 실패:', e);
-    setLoadingCongestion(false);
-  }
-};
+  };
 
   const checkAdmin = async (email) => {
     const { data } = await supabase.from('admins').select('*').eq('email', email).maybeSingle();
@@ -184,10 +185,7 @@ const loadStoresAndStocks = async () => {
   };
 
   const getUserLocation = () => {
-    if (!navigator.geolocation) {
-      setUserLocation({ lat: 37.5665, lng: 126.9780 });
-      return;
-    }
+    if (!navigator.geolocation) { setUserLocation({ lat: 37.5665, lng: 126.9780 }); return; }
     navigator.geolocation.getCurrentPosition(
       pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => setUserLocation({ lat: 37.5665, lng: 126.9780 }),
@@ -195,25 +193,16 @@ const loadStoresAndStocks = async () => {
     );
   };
 
-  // ✅ 모바일 제보: GPS를 강제로 새로 가져오는 함수
   const getFreshLocation = () => {
     return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve(userLocation || { lat: 37.5665, lng: 126.9780 });
-        return;
-      }
+      if (!navigator.geolocation) { resolve(userLocation || { lat: 37.5665, lng: 126.9780 }); return; }
       setLocationLoading(true);
       navigator.geolocation.getCurrentPosition(
         pos => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserLocation(loc);
-          setLocationLoading(false);
-          resolve(loc);
+          setUserLocation(loc); setLocationLoading(false); resolve(loc);
         },
-        () => {
-          setLocationLoading(false);
-          resolve(userLocation || { lat: 37.5665, lng: 126.9780 });
-        },
+        () => { setLocationLoading(false); resolve(userLocation || { lat: 37.5665, lng: 126.9780 }); },
         { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
       );
     });
@@ -290,7 +279,6 @@ const loadStoresAndStocks = async () => {
     setSelectedTrend(prev => prev === trendName ? null : trendName);
   };
 
-  // ✅ 검색: 아이템은 재고있는 가게 수 표시
   const handleSearch = (query) => {
     setSearchQuery(query);
     if (!query.trim()) { setSearchResults([]); setShowSearchResults(false); return; }
@@ -298,7 +286,6 @@ const loadStoresAndStocks = async () => {
       store.name?.toLowerCase().includes(query.toLowerCase()) ||
       store.address?.toLowerCase().includes(query.toLowerCase())
     ).map(store => ({ type: 'store', data: store }));
-
     const itemMap = {};
     stocks.forEach(stock => {
       if (!stock.item_name?.toLowerCase().includes(query.toLowerCase())) return;
@@ -311,30 +298,23 @@ const loadStoresAndStocks = async () => {
       type: 'item', data: { item_name: item.item_name },
       storeCount: item.storeIds.size, hasStock: item.hasStock
     }));
-
     setSearchResults([...storeResults, ...itemResults].slice(0, 15));
     setShowSearchResults(true);
   };
 
   const handleSearchSelect = (result) => {
-    setShowSearchResults(false);
-    setSearchQuery('');
+    setShowSearchResults(false); setSearchQuery('');
     if (result.type === 'store') {
-      setSelectedStore(result.data);
-      setShowStoreDetail(true);
+      setSelectedStore(result.data); setShowStoreDetail(true);
       if (mapRef.current) {
         mapRef.current.setCenter(new window.kakao.maps.LatLng(result.data.lat, result.data.lng));
         mapRef.current.setLevel(3);
       }
-    } else {
-      handleSelectTrend(result.data.item_name);
-    }
+    } else { handleSelectTrend(result.data.item_name); }
   };
 
   const searchKakaoPlaces = (query) => {
-    setStoreSearchQuery(query);
-    setSelectedKakaoPlace(null);
-    setCustomStoreName('');
+    setStoreSearchQuery(query); setSelectedKakaoPlace(null); setCustomStoreName('');
     if (!query.trim()) { setStoreSearchResults([]); return; }
     if (!window.kakao?.maps?.services) return;
     setStoreSearchLoading(true);
@@ -346,18 +326,14 @@ const loadStoresAndStocks = async () => {
     });
   };
 
-  // ✅ 위치만 가져오고 이름은 직접 입력
   const handleSelectKakaoPlace = (place) => {
     setSelectedKakaoPlace(place);
     setStoreSearchQuery(place.road_address_name || place.address_name);
-    setStoreSearchResults([]);
-    setCustomStoreName('');
+    setStoreSearchResults([]); setCustomStoreName('');
     setStoreData(prev => ({
-      ...prev,
-      name: '',
+      ...prev, name: '',
       address: place.road_address_name || place.address_name,
-      lat: parseFloat(place.y),
-      lng: parseFloat(place.x)
+      lat: parseFloat(place.y), lng: parseFloat(place.x)
     }));
   };
 
@@ -383,12 +359,9 @@ const loadStoresAndStocks = async () => {
         catch (imgError) { console.error('이미지 업로드 실패:', imgError); }
       }
       const { error } = await supabase.from('stores').insert({
-        name: customStoreName.trim(),
-        category: storeData.category,
-        address: storeData.address.trim(),
-        lat: storeData.lat, lng: storeData.lng,
-        status: 'pending', owner_id: user.id,
-        owner_email: user.email, image_url: imageUrl
+        name: customStoreName.trim(), category: storeData.category,
+        address: storeData.address.trim(), lat: storeData.lat, lng: storeData.lng,
+        status: 'pending', owner_id: user.id, owner_email: user.email, image_url: imageUrl
       });
       if (error) throw error;
       alert('가게 등록 신청 완료! 관리자 승인 후 표시됩니다 😊');
@@ -396,9 +369,8 @@ const loadStoresAndStocks = async () => {
       setStoreData({ name: '', category: 'popmart', address: '', lat: null, lng: null });
       setStoreSearchQuery(''); setSelectedKakaoPlace(null);
       setStoreImage(null); setCustomStoreName('');
-    } catch (error) {
-      alert('가게 등록에 실패했습니다: ' + error.message);
-    } finally { setAddressLoading(false); }
+    } catch (error) { alert('가게 등록에 실패했습니다: ' + error.message); }
+    finally { setAddressLoading(false); }
   };
 
   const addPoints = async (userId, points) => {
@@ -417,32 +389,26 @@ const loadStoresAndStocks = async () => {
     }
   };
 
-  // ✅ 모바일 제보: GPS를 제보 시점에 새로 가져와서 정확도 향상
   const handleSubmitReport = async (e) => {
     e.preventDefault();
     if (!user) { setShowAuthModal(true); return; }
     if (!selectedStore || !reportData.itemName.trim()) { alert('아이템을 선택해주세요.'); return; }
-
-    // GPS 새로 가져오기 (모바일 정확도 향상)
     const freshLocation = await getFreshLocation();
-
     const distance = getDistance(freshLocation.lat, freshLocation.lng, selectedStore.lat, selectedStore.lng);
     if (distance > 100) {
       alert(`📍 가게에서 ${Math.round(distance)}m 떨어져 있어요.\n직접 방문 후 100m 이내에서만 제보할 수 있어요!`);
       return;
     }
-
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const { data: todayLogs } = await supabase.from('activity_logs').select('*')
       .eq('user_id', user.id).eq('action', 'stock_report').gte('created_at', today.toISOString());
-    const userPoints = await supabase.from('user_points').select('points').eq('user_id', user.id).maybeSingle();
-    const pts = userPoints?.data?.points || 0;
+    const { data: userPointsData } = await supabase.from('user_points').select('points').eq('user_id', user.id).maybeSingle();
+    const pts = userPointsData?.points || 0;
     const dailyLimit = pts >= 300 ? 10 : pts >= 100 ? 5 : 3;
     if (todayLogs && todayLogs.length >= dailyLimit) {
       alert(`오늘 제보 횟수(${dailyLimit}회)를 모두 사용했어요.\n등급을 올리면 더 많이 제보할 수 있어요! 😊`);
       return;
     }
-
     try {
       await supabase.from('stocks').insert({
         store_id: selectedStore.id, item_name: reportData.itemName.trim(),
@@ -466,10 +432,8 @@ const loadStoresAndStocks = async () => {
     setUser(null); setSpotPoints(0);
   };
 
-  // ✅ 관리자 뒤로가기: 지도 ref 초기화 후 재렌더링
   const handleBackFromAdmin = () => {
-    mapRef.current = null;
-    markersRef.current = [];
+    mapRef.current = null; markersRef.current = [];
     setShowAdminPage(false);
   };
 
@@ -491,15 +455,9 @@ const loadStoresAndStocks = async () => {
     <div className="app">
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
 
-      {/* ✅ 모바일 모달 CSS 수정 */}
       {showAuthModal && (
         <div className="modal-overlay" onClick={() => setShowAuthModal(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: '16px'
-          }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '400px' }}>
             <Auth onLogin={(u) => { setUser(u); setShowAuthModal(false); }} />
           </div>
@@ -566,7 +524,6 @@ const loadStoresAndStocks = async () => {
                     <div className="search-name">
                       {result.type === 'store' ? result.data.name : result.data.item_name}
                     </div>
-                    {/* ✅ 아이템: 재고 있는 가게 수 표시 */}
                     <div className="search-address">
                       {result.type === 'store' ? result.data.address : `재고 있는 매장 ${result.hasStock}곳`}
                     </div>
@@ -576,8 +533,18 @@ const loadStoresAndStocks = async () => {
             </div>
           )}
         </div>
+
+        {/* ✅ 날씨 + 슬로건 */}
         <div className="header-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <span>🔥 있어? 있템! 실시간 트렌드 재고 공유 플랫폼</span>
+          {weather && (
+            <span style={{ fontSize: '12px', color: 'var(--ts-text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              · {weather.icon} {weather.text}
+              {weather.effect && (
+                <span style={{ color: '#FF6B6B' }}>· {weather.effect}</span>
+              )}
+            </span>
+          )}
           <OnlineCounter />
         </div>
       </header>
@@ -630,7 +597,6 @@ const loadStoresAndStocks = async () => {
 
       <AIAssistant stores={stores} stocks={stocks} user={user} userLocation={userLocation} />
 
-      {/* 재고 제보 폼 */}
       {showReportForm && selectedStore && (
         <div className="modal-overlay" onClick={() => setShowReportForm(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -733,7 +699,6 @@ const loadStoresAndStocks = async () => {
         </div>
       )}
 
-      {/* 가게 등록 폼 */}
       {showAddStoreForm && (
         <div className="modal-overlay" onClick={() => setShowAddStoreForm(false)}
           style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -745,7 +710,6 @@ const loadStoresAndStocks = async () => {
             <div className="modal-body">
               <p style={{ fontSize: '13px', color: 'var(--ts-text-secondary)', marginBottom: '16px' }}>관리자 승인 후 지도에 표시됩니다 😊</p>
               <form onSubmit={handleAddStore} className="report-form">
-                {/* ✅ 위치 검색 먼저 */}
                 <div className="form-group">
                   <label className="input-label">위치 검색 *</label>
                   <div style={{ position: 'relative' }}>
@@ -777,7 +741,6 @@ const loadStoresAndStocks = async () => {
                     </div>
                   )}
                 </div>
-                {/* ✅ 가게 이름 직접 입력 */}
                 <div className="form-group">
                   <label className="input-label">가게 이름 *</label>
                   <input className="input" type="text" value={customStoreName}
